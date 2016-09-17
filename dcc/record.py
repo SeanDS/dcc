@@ -117,6 +117,11 @@ class DccRecordVersion(object):
         self.dcc_record = dcc_record
         self.version = int(version)
     
+    def __str__(self):
+        """String representation of the DCC record version"""
+        
+        return "v{0} of {1}".format(self.version, self.dcc_record)
+    
     @property
     def fetched(self):
         return self.__fetched
