@@ -24,7 +24,7 @@ class DccPatterns(object):
     }
     
     """DCC category and number regular expression"""
-    _regex_dcc_number_str = "([a-z])(\\d+)"
+    _regex_dcc_number_str = "([a-z])(\\d+)(-[vx](\\d+))?"
     
     """DCC record version regular expression
     Version strings on the DCC are either -vX where X is an integer > 0, or -x0
@@ -89,6 +89,13 @@ class DccPatterns(object):
         # second match is the number
         dcc_numeric = int(group[1])
         
+        # check if a version was matched
+        if len(group) > 3:
+            # version is 3rd item
+            version = group[3]
+        else:
+            version = None
+        
         # check category is valid
         if not self.is_category_letter(category_letter):
             raise InvalidDccNumberException()
@@ -97,8 +104,13 @@ class DccPatterns(object):
         if not self.is_dcc_numeric(dcc_numeric):
             raise InvalidDccNumberException()
         
+        # check if version is valid, if it was matched
+        if version is not None:
+            if not self.is_dcc_version(version):
+                raise InvalidDccNumberException()
+        
         # return a new DccNumber object representing the matched information
-        return record.DccNumber(category_letter, dcc_numeric)
+        return record.DccNumber(category_letter, dcc_numeric, version)
 
     def _dcc_record_version_from_regex_search(self, regex_search):
         """Validates the matched values in a regular expression search for a DCC record version in a string
@@ -173,56 +185,28 @@ class DccRecordParser(object):
         # get DCC number
         dcc_number = self._extract_dcc_number()
         
-        # get title
-        title = self._extract_title()
-        
         # create the new DCC record
         dcc_record = record.DccRecord(dcc_number)
         
         # set its title
-        dcc_record.title = title
+        dcc_record.title = self._extract_title()
         
-        # extract record versions
-        record_versions = self._get_dcc_record_versions(dcc_record)
+        # get other version numbers
+        other_version_numbers = self._extract_other_version_numbers()
         
-        # set them in the record
-        map(dcc_record.add_version, record_versions)
+        # set the other versions
+        map(dcc_record.add_version_number, other_version_numbers)
+        self.logger.info("Found %d other version number(s)", len(other_version_numbers))
+        
+        # get attached files
+        files = self._extract_attached_files()
+        
+        # set the files
+        map(dcc_record.add_file, files)
+        self.logger.info("Found %d attached file(s)", len(files))
         
         # return the new record
         return dcc_record
-    
-    def _get_dcc_record_versions(self, dcc_record):
-        """Extracts record versions from the page and attaches files where appropriate
-        
-        :param dcc_record: DCC record associated with the content
-        """
-        
-        # get current version
-        current_version = self._extract_version_number()
-        
-        # get other versions list
-        other_versions = self._extract_other_version_numbers()
-        
-        # get current files
-        current_version_files = self._extract_attached_files()
-        
-        # create current version
-        current_record_version = record.DccRecordVersion(dcc_record, current_version)
-        
-        # attach files to the current version
-        map(current_record_version.add_file, current_version_files)
-        
-        # set current version to fetched
-        current_record_version.fetched = True
-        
-        # list of record versions, populated with current one
-        record_versions = [current_record_version]
-        
-        # extend list with other record versions
-        record_versions.extend([record.DccRecordVersion(dcc_record, version) for version in other_versions])
-        
-        # return versions
-        return record_versions
     
     def _get_content_navigator(self):
         """Gets a navigator object for the page content"""
@@ -263,22 +247,6 @@ class DccRecordParser(object):
         title = str(doc_title_div.find("h1").string)
         
         return title
-
-    def _extract_version_number(self):
-        """Extract the version of the page"""
-        
-        # get a navigator object for the record
-        navigator = self._get_content_navigator()
-        
-        # find document number element
-        doc_num_h = navigator.find("h1", id='title')
-        
-        # make sure it was found
-        if doc_num_h is None:
-            raise DccRecordTitleNotFoundException()
-        
-        # get and return DCC number
-        return self.dcc_patterns.get_dcc_record_version_from_string(doc_num_h.string)
 
     def _extract_other_version_numbers(self):
         """Extract a list of other version numbers from the page content"""

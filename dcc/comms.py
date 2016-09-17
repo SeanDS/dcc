@@ -6,7 +6,7 @@ import record
 import patterns
 
 class Fetcher(object):
-    """Represents a collection of tools to download and archive DCC data"""
+    """Represents a collection of tools to communicate with the DCC server"""
     
     """Abstract method"""
     __metaclass__ = abc.ABCMeta
@@ -71,10 +71,17 @@ class HttpFetcher(Fetcher):
         
         self.cookies = cookies
     
-    def _build_dcc_url(self, dcc_number):
+    def _build_dcc_url(self, dcc_number, version=None):
         """Builds a DCC URL given the specified DCC number"""
         
-        return self.protocol + "://" + self.servers[0] + "/" + str(dcc_number)
+        # create URL
+        url = self.protocol + "://" + self.servers[0] + "/" + str(dcc_number)
+        
+        # add a version if required
+        if version is not None:
+            url += record.DccNumber.get_version_suffix(version)
+        
+        return url
     
     def _get_url_contents(self, url):
         opener = urllib2.build_opener()

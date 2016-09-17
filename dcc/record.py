@@ -5,15 +5,27 @@ import patterns
 class DccNumber(object):
     """Represents a DCC number, including category and numeric identifier"""
     
-    def __init__(self, first_id, numeric=None):
+    """Category"""
+    category = None
+    
+    """Numeric part"""
+    numeric = None
+    
+    """Version of the DCC record"""
+    version = None
+    
+    def __init__(self, first_id, numeric=None, version=None):
         """Instantiates a DccNumber object
         
-        You must either provide a string containing the DCC number, or the separate category and numeric parts, e.g.
+        You must either provide a string containing the DCC number, or the
+        separate category and numeric parts, with optional version, e.g.
             __init__("T1234567")
-            __init__("T", 1234567)
+            __init__("T", 1234567) # equivalent to T1234567
+            __init__("T", 1234567, 4) # equivalent to T1234567-v4
         
         :param first_id: category character, or the full DCC number
-        :param numeric: numeric part of DCC number
+        :param numeric: numeric designator of DCC document
+        :param version: version number of DCC document
         """
         
         if numeric is None:
@@ -21,11 +33,25 @@ class DccNumber(object):
             if len(first_id) < 2:
                 raise ValueError("Invalid DCC number; should be of the form \"T1234567\"")
             
-            # chop off first letter for category...
-            category = first_id[0]
+            try:
+                # find where the hyphen denoting version is
+                hyphen_index = first_id.index('-')
+            except ValueError as e:
+                # couldn't find it
+                hyphen_index = None
             
-            # ...and the rest for the numeric part
-            numeric = first_id[1:]
+            if hyphen_index is not None:
+                # numeric part is between second character and index
+                numeric = first_id[1:hyphen_index]
+                
+                # version is last part, two places beyond start of hyphen
+                version = first_id[hyphen_index+2:]
+            else:
+                # numeric is everything after first character
+                numeric = first_id[1:]
+            
+            # category should be first
+            category = first_id[0]
         else:
             # category is the first argument
             category = first_id
@@ -33,11 +59,15 @@ class DccNumber(object):
         # set the values
         self.category = str(category)
         self.numeric = int(numeric)
+        
+        # validate version if it was found
+        if version is not None:
+            self.version = int(version)
     
     def __str__(self):
         """String representation of the DCC number"""
         
-        return "{0}{1}".format(self.category, self.numeric)
+        return "{0}{1}{2}".format(self.category, self.numeric, self.get_version_suffix())
     
     def __eq__(self, other_dcc_number):
         """Checks if the specified DCC number is equal to this one
@@ -55,6 +85,17 @@ class DccNumber(object):
         """
         
         return not self.__eq__(other_dcc_number)
+    
+    def get_version_suffix(self):
+        """Returns the DCC URL suffix for the version number"""
+        
+        # version 0 should end "x0", otherwise "v1" etc.
+        if self.version is None:
+            return "-v?"
+        elif self.version is 0:
+            return "-x0"
+        else:
+            return "-v{0}".format(self.version)
 
 class DccRecord(object):
     """Represents a DCC record"""
@@ -62,8 +103,11 @@ class DccRecord(object):
     """Title"""
     title = None
     
-    """Versions associated with this record"""
-    record_versions = []
+    """Other version numbers associated with this record"""
+    other_version_numbers = []
+    
+    """Files associated with this record"""
+    files = []
     
     def __init__(self, dcc_number):
         """Instantiates a DCC record
@@ -81,75 +125,57 @@ class DccRecord(object):
         
         return "{0}: {1}".format(self.dcc_number, self.title)
     
-    def add_version(self, record_version):
-        """Adds the specified record version to the record
+    @property
+    def versions(self):
+        """Returns a list of versions associated with this record"""
         
-        :param record_version: record version to add
-        """
+        versions_list = self.other_version_numbers
+        versions_list.append(self.dcc_number.version)
         
-        self.logger.info("Adding record version {0}".format(record_version.version))
-        
-        # add to version list
-        self.record_versions.append(record_version)
-    
-    def get_lastest_record_version(self):
-        """Returns the latest record version associated with this record"""
-        
-        # find index of highest version in the list of record versions
-        max_index, _ = max(enumerate([record_version.version for record_version in self.record_versions]), key=lambda t: t[1])
-        
-        # return the highest record version
-        return self.record_versions[max_index]
-
-class DccRecordVersion(object):
-    """Represents a DCC record with a version"""
-    
-    """Whether the record has been downloaded"""
-    fetched = False
-    
-    """Version"""
-    version = None
-    
-    """Files"""
-    files = []
-    
-    def __init__(self, dcc_record, version):
-        """Instantiates the record version for the associated record
-        
-        :param dcc_record: DCC record associated with this version
-        :param version: record version
-        """
-        
-        # create logger
-        self.logger = logging.getLogger("record-version")
-        
-        self.dcc_record = dcc_record
-        self.version = int(version)
-    
-    def __str__(self):
-        """String representation of the DCC record version"""
-        
-        return "v{0} of {1}".format(self.version, self.dcc_record)
+        return versions_list
     
     @property
-    def fetched(self):
-        return self.__fetched
-    
-    @fetched.setter
-    def fetched(self, status):
-        # set boolean value
-        self.__fetched = (status)
-    
-    def add_file(self, version_file):
-        """Adds the specified file to the record version
+    def filenames(self):
+        """Returns a list of filenames associated with this record"""
         
-        :param version_file: file to add
+        return [str(dcc_file) for dcc_file in self.files]
+    
+    def add_version_number(self, version_number):
+        """Adds the specified other version number to the record
+        
+        :param version_number: version number to add
         """
         
-        self.logger.info("Adding file \"{0}\" to version {1}".format(version_file, self.version))
+        # validate
+        version_number = int(version_number)
         
-        # add to files list
-        self.files.append(version_file)
+        self.logger.debug("Adding other version number {0}".format(version_number))
+        
+        # add to version list
+        self.other_version_numbers.append(version_number)
+    
+    def add_file(self, dcc_file):
+        """Adds the specified file to the record
+        
+        :param dcc_file: DCC file to add
+        """
+        
+        self.logger.debug("Adding file {0}".format(dcc_file))
+        
+        # add to file list
+        self.files.append(dcc_file)
+    
+    def get_lastest_version_number(self):
+        """Returns the latest version number for this record"""
+            
+        # find highest other version
+        max_other_version = max(self.other_version_numbers)
+        
+        # check if this is greater than the current version
+        if max_other_version > self.dcc_number.version:
+            return max_other_version
+        else:
+            return self.dcc_number.version
 
 class DccFile(object):
     """Represents a file attached to a DCC document"""
