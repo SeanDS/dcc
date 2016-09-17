@@ -14,8 +14,12 @@ class Fetcher(object):
     def fetch_dcc_record(self, dcc_number):
         """Fetches the DCC record specified by the provided number
         
-        :param dcc_number: DCC number representing record
+        :param dcc_number: DCC number object representing record (or, alternatively, the string)
         """
+        
+        # create DCC number object if necessary
+        if isinstance(dcc_number, str):
+            dcc_number = record.DccNumber(dcc_number)
         
         # create the DCC URL
         url = self._build_dcc_url(dcc_number)

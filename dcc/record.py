@@ -5,12 +5,30 @@ import patterns
 class DccNumber(object):
     """Represents a DCC number, including category and numeric identifier"""
     
-    def __init__(self, category, numeric):
+    def __init__(self, first_id, numeric=None):
         """Instantiates a DccNumber object
         
-        :param category: DCC category
-        :param numeric: DCC record number
+        You must either provide a string containing the DCC number, or the separate category and numeric parts, e.g.
+            __init__("T1234567")
+            __init__("T", 1234567)
+        
+        :param first_id: category character, or the full DCC number
+        :param numeric: numeric part of DCC number
         """
+        
+        if numeric is None:
+            # full number specified, so check it's long enough
+            if len(first_id) < 2:
+                raise ValueError("Invalid DCC number; should be of the form \"T1234567\"")
+            
+            # chop off first letter for category...
+            category = first_id[0]
+            
+            # ...and the rest for the numeric part
+            numeric = first_id[1:]
+        else:
+            # category is the first argument
+            category = first_id
         
         # set the values
         self.category = str(category)
