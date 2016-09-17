@@ -24,7 +24,6 @@ from a terminal.
 Before doing anything else, add the `dcc` package to your Python path.
 
 ```python
-import dcc.record
 import dcc.comms
 
 # create a fetcher with the session cookie created by Shibboleth
