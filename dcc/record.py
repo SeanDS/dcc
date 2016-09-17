@@ -91,6 +91,15 @@ class DccRecord(object):
         
         # add to version list
         self.record_versions.append(record_version)
+    
+    def get_lastest_record_version(self):
+        """Returns the latest record version associated with this record"""
+        
+        # find index of highest version in the list of record versions
+        max_index, _ = max(enumerate([record_version.version for record_version in self.record_versions]), key=lambda t: t[1])
+        
+        # return the highest record version
+        return self.record_versions[max_index]
 
 class DccRecordVersion(object):
     """Represents a DCC record with a version"""
