@@ -35,7 +35,7 @@ record = fetcher.fetch_dcc_record("P1500227")
 ```
 
 You can then print some useful information:
-```
+```python
 print record.dcc_number
 print record.title
 print record.version
