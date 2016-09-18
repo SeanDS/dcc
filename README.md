@@ -12,11 +12,12 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/) [Document C
 
   - Python 2.7+
   - BeautifulSoup4
+  - pytz
   - LIGO.org credentials (`albert.einstein`)
 
-[BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/) can be obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
+[BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/) and pytz can be obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
 ```bash
-sudo pip install BeatifulSoup4
+sudo pip install BeatifulSoup4 pytz
 ```
 from a terminal.
 
