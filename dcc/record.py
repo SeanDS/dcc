@@ -5,6 +5,21 @@ import patterns
 class DccNumber(object):
     """Represents a DCC number, including category and numeric identifier"""
     
+    """DCC document type designators and descriptions"""
+    document_type_letters = {
+        "C": "Contractual or procurement",
+        "D": "Drawings",
+        "E": "Engineering documents",
+        "F": "Forms and Templates",
+        "G": "Presentations (eg Graphics)",
+        "L": "Letters and Memos",
+        "M": "Management or Policy",
+        "P": "Publications",
+        "Q": "Quality Assurance documents",
+        "S": "Serial numbers",
+        "T": "Techical notes"
+    }
+    
     """Category"""
     category = None
     
@@ -28,6 +43,9 @@ class DccNumber(object):
         :param version: version number of DCC document
         """
         
+        # create logger
+        self.logger = logging.getLogger("number")
+        
         if numeric is None:
             # full number specified, so check it's long enough
             if len(first_id) < 2:
@@ -41,28 +59,70 @@ class DccNumber(object):
                 hyphen_index = None
             
             if hyphen_index is not None:
+                # check if the version was specified, and if so, warn the user
+                if version is not None:
+                    self.logger.warning("Version argument ignored as it was specified in the DCC string")
+                
                 # numeric part is between second character and index
-                numeric = first_id[1:hyphen_index]
+                numeric = int(first_id[1:hyphen_index])
                 
                 # version is last part, two places beyond start of hyphen
-                version = first_id[hyphen_index+2:]
+                version = int(first_id[hyphen_index+2:])
             else:
                 # numeric is everything after first character
-                numeric = first_id[1:]
+                numeric = int(first_id[1:])
             
             # category should be first
-            category = first_id[0]
+            category = str(first_id[0])
         else:
             # category is the first argument
-            category = first_id
+            category = str(first_id)
         
-        # set the values
-        self.category = str(category)
-        self.numeric = int(numeric)
+        # check category is valid
+        if not self.is_category_letter(category):
+            raise InvalidDccNumberException()
+        
+        # check number is valid
+        if not self.is_dcc_numeric(numeric):
+            raise InvalidDccNumberException()
         
         # validate version if it was found
-        if version is not None:
-            self.version = int(version)
+        if version is not None:            
+            # check version is valid
+            if not self.is_dcc_version(version):
+                raise InvalidDccNumberException()
+        
+        # set everything
+        self.category = category
+        self.numeric = numeric
+        self.version = version
+
+    def is_category_letter(self, letter):
+        """Checks if the specified category letter is valid
+        
+        :param letter: category letter to check
+        """
+        
+        # check if letter is in list of valid letters
+        return letter in self.document_type_letters.keys()
+    
+    def is_dcc_numeric(self, numeric):
+        """Checks if the specified number is a valid DCC numeral
+        
+        :param numeric: DCC numeral to check
+        """
+        
+        # for now, just check if the number is a positive integer
+        # TODO: any other constraints to check, e.g. length?
+        return int(numeric) > 0
+    
+    def is_dcc_version(self, version):
+        """Checks if the specified version number is valid
+        
+        :param version: version to check
+        """
+        
+        return int(version) >= 0
     
     def __str__(self):
         """String representation of the DCC number"""
@@ -201,3 +261,7 @@ class DccFile(object):
         """String representation of the DCC record"""
         
         return "{0} ({1})".format(self.title, self.filename)
+    
+class InvalidDccNumberException(Exception):
+    """Exception for when a DCC number is invalid"""
+    pass

@@ -10,21 +10,6 @@ class DccPatterns(object):
     """Handles extraction of useful information from DCC pages.
     """
     
-    """DCC document type designators and descriptions"""
-    document_type_letters = {
-        "C": "Contractual or procurement",
-        "D": "Drawings",
-        "E": "Engineering documents",
-        "F": "Forms and Templates",
-        "G": "Presentations (eg Graphics)",
-        "L": "Letters and Memos",
-        "M": "Management or Policy",
-        "P": "Publications",
-        "Q": "Quality Assurance documents",
-        "S": "Serial numbers",
-        "T": "Techical notes"
-    }
-    
     """DCC category and number regular expression"""
     _regex_dcc_number_str = "([a-z])(\\d+)(-[vx](\\d+))?"
     
@@ -98,19 +83,6 @@ class DccPatterns(object):
         else:
             version = None
         
-        # check category is valid
-        if not self.is_category_letter(category_letter):
-            raise InvalidDccNumberException()
-        
-        # check number is valid
-        if not self.is_dcc_numeric(dcc_numeric):
-            raise InvalidDccNumberException()
-        
-        # check if version is valid, if it was matched
-        if version is not None:
-            if not self.is_dcc_version(version):
-                raise InvalidDccNumberException()
-        
         # return a new DccNumber object representing the matched information
         return record.DccNumber(category_letter, dcc_numeric, version)
 
@@ -130,38 +102,7 @@ class DccPatterns(object):
         # first match is the version
         version = int(group[0])
         
-        # check version is valid
-        if not self.is_dcc_version(version):
-            raise InvalidDccNumberException()
-        
         return version
-
-    def is_category_letter(self, letter):
-        """Checks if the specified category letter is valid
-        
-        :param letter: category letter to check
-        """
-        
-        # check if letter is in list of valid letters
-        return letter in self.document_type_letters.keys()
-    
-    def is_dcc_numeric(self, numeric):
-        """Checks if the specified number is a valid DCC numeral
-        
-        :param numeric: DCC numeral to check
-        """
-        
-        # for now, just check if the number is a positive integer
-        # TODO: any other constraints to check, e.g. length?
-        return int(numeric) > 0
-    
-    def is_dcc_version(self, version):
-        """Checks if the specified version number is valid
-        
-        :param version: version to check
-        """
-        
-        return int(version) >= 0
 
 class DccRecordParser(object):
     """Represents a parser for DCC HTML documents"""
@@ -391,10 +332,6 @@ class DccRecordParser(object):
 
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
-    pass
-
-class InvalidDccNumberException(Exception):
-    """Exception for when a DCC number is invalid"""
     pass
 
 class DccRecordTitleNotFoundException(Exception):
