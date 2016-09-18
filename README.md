@@ -32,11 +32,14 @@ fetcher = dcc.comms.HttpFetcher("_shibsession_xxx=yyy")
 
 # fetch a DCC record
 record = fetcher.fetch_dcc_record("P1500227")
+```
 
-# print some useful information
+You can then print some useful information:
+```python
 print record.dcc_number
 print record.title
-print [str(version) for version in record.record_versions]
+print record.version
+print record.other_version_numbers
 ```
 
 The Shibboleth cookie must be provided in order for `dcc-api` to access the DCC without needing to support login capabilities. To obtain it, log in to the DCC and then extract the cookie with a name and value similar to `_shibsession_xxx=yyy`. You'll need to give both the name and value.
