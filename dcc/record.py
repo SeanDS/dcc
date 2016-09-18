@@ -2,7 +2,11 @@
 
 """Record classes"""
 
+import sys
+import os
 import logging
+import subprocess
+import tempfile
 
 class DccNumber(object):
     """Represents a DCC number, including category and numeric identifier"""
@@ -251,6 +255,12 @@ class DccRecord(object):
 class DccFile(object):
     """Represents a file attached to a DCC document"""
 
+    # file data
+    data = None
+
+    # local path
+    local_path = None
+
     def __init__(self, title, filename, url):
         """Instantiates a DCC file object
 
@@ -258,6 +268,9 @@ class DccFile(object):
         :param filename: filename
         :param url: file URL string
         """
+
+        # create logger
+        self.logger = logging.getLogger("file")
 
         self.title = title
         self.filename = filename
@@ -268,6 +281,64 @@ class DccFile(object):
 
         return "{0} ({1})".format(self.title, self.filename)
 
+    def set_data(self, data):
+        """Sets the data associated with this file
+
+        :param data: data to set
+        """
+
+        # set the data
+        self.data = data
+
+    def open_file(self):
+        """Opens the file using the operating system"""
+
+        # check if the data is available
+        if self.data is None:
+            raise DataNotDownloadedException()
+
+        # check if the file location exists
+        if not self.has_local_path():
+            self.create_temp_path()
+
+        self.logger.info("Opening file...")
+
+        # check if Linux
+        if sys.platform.startswith('linux'):
+            # open with X.ORG
+            subprocess.call(["xdg-open", self.local_path])
+        else:
+            # open with Python (this may not work on non-Windows)
+            os.startfile(self.local_path)
+
+    def has_local_path(self):
+        """Checks if the file has a local path"""
+
+        return self.local_path is not None
+
+    def create_temp_path(self):
+        """Creates and sets a temporary location for the file"""
+
+        self.logger.info("Setting temporary path for %s", self)
+
+        # get a temporary file, with a guaranteed name and not deleted immediately
+        tmp_file = tempfile.NamedTemporaryFile(delete=False)
+
+        self.logger.info("Writing data to temporary file")
+
+        # write data to file
+        tmp_file.write(self.data)
+
+        # close file
+        tmp_file.close()
+
+        # set the (string) path
+        self.local_path = tmp_file.name
+
 class InvalidDccNumberException(Exception):
     """Exception for when a DCC number is invalid"""
+    pass
+
+class DataNotDownloadedException(Exception):
+    """Exception for when file data is not downloaded"""
     pass

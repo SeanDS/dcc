@@ -14,10 +14,11 @@ class Fetcher(object):
     # abstract method
     __metaclass__ = abc.ABCMeta
 
-    def fetch_dcc_record(self, dcc_number):
+    def fetch_dcc_record(self, dcc_number, download_files=False):
         """Fetches the DCC record specified by the provided number
 
         :param dcc_number: DCC number object representing record (or, alternatively, the string)
+        :param download_files: whether to download the files attached to the record
         """
 
         # create DCC number object if necessary
@@ -37,6 +38,10 @@ class Fetcher(object):
         if dcc_record.dcc_number != dcc_number:
             raise DifferentDccRecordException()
 
+        # download the files associated with the record, if requested
+        if download_files:
+            self._download_record_files(dcc_record)
+
         return dcc_record
 
     @abc.abstractmethod
@@ -48,6 +53,15 @@ class Fetcher(object):
     @abc.abstractmethod
     def _get_url_contents(self, url):
         """Fetches the specified contents at the specified URL"""
+
+        pass
+
+    @abc.abstractmethod
+    def _download_record_files(self, dcc_record):
+        """Fetches the files attached to the specified record
+
+        :param dcc_record: DCC record to fetch files for
+        """
 
         pass
 
@@ -95,6 +109,35 @@ class HttpFetcher(Fetcher):
 
         self.logger.info("Reading document content")
         return stream.read()
+
+    def _download_record_files(self, dcc_record):
+        """Fetches the files attached to the specified record
+
+        :param dcc_record: DCC record to fetch files for
+        """
+
+        # count files
+        total_count = len(dcc_record.files)
+
+        # current file count
+        current_count = 1
+
+        self.logger.info("Fetching files...")
+
+        # loop over files in this record
+        for dcc_file in dcc_record.files:
+            self.logger.info("(%d/%d) Fetching %s", current_count, total_count, dcc_file)
+
+            # get the file contents
+            data = self._get_url_contents(dcc_file.url)
+
+            # attach data to file
+            dcc_file.set_data(data)
+
+            # increment counter
+            current_count += 1
+
+        self.logger.info("Finished fetch")
 
 class DifferentDccRecordException(Exception):
     """Exception for when a different DCC record is retrieved compared to the requested one"""
