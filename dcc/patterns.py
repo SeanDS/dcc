@@ -1,332 +1,347 @@
 # -*- coding: utf-8 -*-
+
+"""Pattern matching classes"""
+
 import logging
 import re
-import record
-from bs4 import BeautifulSoup as bs
 from datetime import datetime
+from bs4 import BeautifulSoup as bs
 import pytz
+import dcc.record as record
 
 class DccPatterns(object):
-    """Handles extraction of useful information from DCC pages.
-    """
-    
-    """DCC category and number regular expression"""
-    _regex_dcc_number_str = "([a-z])(\\d+)(-[vx](\\d+))?"
-    
-    """DCC record version regular expression
-    Version strings on the DCC are either -vX where X is an integer > 0, or -x0
-    """
-    _regex_dcc_record_version_str_full = "[a-z]\\d+-[vx](\\d+)"
-    
-    """Regex string match settings"""
+    """Handles extraction of useful information from DCC pages."""
+
+    # DCC category and number regular expression
+    _dcc_number_regex = "([a-z])(\\d+)(-[vx](\\d+))?"
+
+    # DCC record version regular expression
+    # Version strings on the DCC are either -vX where X is an integer > 0, or -x0
+    _dcc_record_version_regex = "[a-z]\\d+-[vx](\\d+)"
+
+    # regex string match settings
     str_match_settings = re.IGNORECASE
-    
+
     def __init__(self):
         """Instantiates a DccPatterns object, compiling some useful regular expressions"""
-        
+
         # create logger
         self.logger = logging.getLogger("patterns")
-        
+
         # regex matching DCC category and number in strings of the form "T0000000"
-        self._regex_dcc_number_string = re.compile(self._regex_dcc_number_str, self.str_match_settings)
-    
+        self._regex_dcc_number = re.compile(self._dcc_number_regex, self.str_match_settings)
+
         # regex matching DCC category and number within a larger string
-        self._regex_dcc_number_mixed_string = re.compile(".*?" + self._regex_dcc_number_str + ".*?", self.str_match_settings)
-        
+        self._regex_dcc_number_mixed = re.compile(".*?" + self._dcc_number_regex \
+            + ".*?", self.str_match_settings)
+
         # regex matching DCC record version in strings of the form "T0000000-v5"
-        self._regex_dcc_record_version_string = re.compile(self._regex_dcc_record_version_str_full, self.str_match_settings)
-        
+        self._regex_dcc_record_version = re.compile( \
+            self._dcc_record_version_regex, self.str_match_settings)
+
         # regex matching DCC record version within a larger string
-        self._regex_dcc_record_version_mixed_string = re.compile(".*?" + self._regex_dcc_record_version_str_full + ".*?", self.str_match_settings)
-    
+        self._regex_dcc_record_version_mixed = re.compile(".*?" \
+            + self._dcc_record_version_regex + ".*?", self.str_match_settings)
+
     def get_dcc_number_from_string(self, string):
         """Extracts the DCC number from a string and returns a DccNumber object
-        
+
         :param string: string to match DCC number in
         """
-        
-        # search for matches and pass them to another function to validate and create the object; return this object
-        return self._dcc_number_from_regex_search(self._regex_dcc_number_mixed_string.search(string))
 
-    def get_dcc_record_version_from_string(self, string):
+        # search for matches and pass them to another function to validate and create the object
+        return DccPatterns._dcc_number_from_regex_search( \
+            self._regex_dcc_number_mixed.search(string))
+
+    def get_version_from_string(self, string):
         """Extracts the DCC record version from a string and returns it
-        
+
         :param string: string to match DCC record version in
         """
-        
-        # search for matches and pass them to another function to validate and create the object; return this object
-        return self._dcc_record_version_from_regex_search(self._regex_dcc_record_version_mixed_string.search(string))
-    
-    def _dcc_number_from_regex_search(self, regex_search):
+
+        # search for matches and pass them to another function to validate and create the object
+        return DccPatterns._version_from_regex_search( \
+            self._regex_dcc_record_version_mixed.search(string))
+
+    @staticmethod
+    def _dcc_number_from_regex_search(regex_search):
         """Validates the matched values in a regular expression search for a DCC number in a string
-        
+
         :param regex_search: search results object from regular expression
         """
-        
+
         # if the regex search is NoneType, that means no valid values were found
         if regex_search is None:
             raise DccNumberNotFoundException()
-        
+
         # extract group
         group = regex_search.groups()
-        
+
         # first match is the category
         category_letter = str(group[0])
-        
+
         # second match is the number
         dcc_numeric = int(group[1])
-        
+
         # check if a version was matched
         if len(group) > 3:
             # version is 3rd item
             version = group[3]
         else:
             version = None
-        
+
         # return a new DccNumber object representing the matched information
         return record.DccNumber(category_letter, dcc_numeric, version)
 
-    def _dcc_record_version_from_regex_search(self, regex_search):
-        """Validates the matched values in a regular expression search for a DCC record version in a string
-        
+    @staticmethod
+    def _version_from_regex_search(regex_search):
+        """Validates the matched values in a regular expression search for a DCC record version in \
+        a string
+
         :param regex_search: search results object from regular expression
         """
-        
+
         # if the regex search is NoneType, that means no valid values were found
         if regex_search is None:
             raise DccNumberNotFoundException()
-        
+
         # extract group
         group = regex_search.groups()
-        
+
         # first match is the version
         version = int(group[0])
-        
+
         return version
 
 class DccRecordParser(object):
     """Represents a parser for DCC HTML documents"""
-    
+
     def __init__(self, content):
         """Instantiates a record parser with the provided page content
-        
+
         :param content: DCC record page HTML
         """
-        
+
         # create logger
         self.logger = logging.getLogger("patterns")
-        
+
         # create patterns object
         self.dcc_patterns = DccPatterns()
-        
+
         # set page content
         self.content = content
-    
+
     def to_record(self):
         """Returns a DccRecord representing the content"""
-        
+
         # get DCC number
         dcc_number = self._extract_dcc_number()
-        
+
         # create the new DCC record
         dcc_record = record.DccRecord(dcc_number)
-        
+
         # set its title
         dcc_record.title = self._extract_title()
-        
+
         # get other version numbers
         other_version_numbers = self._extract_other_version_numbers()
-        
+
         # set the other versions
         map(dcc_record.add_version_number, other_version_numbers)
         self.logger.info("Found %d other version number(s)", len(other_version_numbers))
-        
+
         # get the revision dates
-        (creation_date, contents_revision_date, metadata_revision_date) = self._extract_revision_dates()
-        
+        (creation_date, contents_rev_date, metadata_rev_date) = self._extract_revision_dates()
+
         # set them individually
         dcc_record.creation_date = creation_date
-        dcc_record.contents_revision_date = contents_revision_date
-        dcc_record.metadata_revision_date = metadata_revision_date
-        
+        dcc_record.contents_revision_date = contents_rev_date
+        dcc_record.metadata_revision_date = metadata_rev_date
+
         # get attached files
         files = self._extract_attached_files()
-        
+
         # set the files
         map(dcc_record.add_file, files)
         self.logger.info("Found %d attached file(s)", len(files))
-        
+
         # return the new record
         return dcc_record
-    
+
     def _get_content_navigator(self):
         """Gets a navigator object for the page content"""
-        
+
         # create and return a BeautifulSoup object
-        return bs(self.content, 'html.parser')
+        return bs(self.content, "html.parser")
 
     def _extract_dcc_number(self):
         """Extracts the DCC number"""
-        
+
         # get a navigator object for the record
         navigator = self._get_content_navigator()
-        
+
         # find document number element
-        doc_num_h = navigator.find("h1", id='title')
-        
+        doc_num_h = navigator.find("h1", id="title")
+
         # make sure it was found
         if doc_num_h is None:
             raise DccRecordTitleNotFoundException()
-        
+
         # get and return DCC number
         return self.dcc_patterns.get_dcc_number_from_string(doc_num_h.string)
 
     def _extract_title(self):
         """Extracts the title from the page content"""
-        
+
         # get a navigator object for the record
         navigator = self._get_content_navigator()
-        
+
         # find div holding title
-        doc_title_div = navigator.find("div", id='DocTitle')
-        
+        doc_title_div = navigator.find("div", id="DocTitle")
+
         # make sure it was found
         if doc_title_div is None:
             raise DccRecordTitleNotFoundException()
-        
+
         # the document title is the entire string contained within h1 within this div
         title = str(doc_title_div.find("h1").string)
-        
+
         return title
 
     def _extract_other_version_numbers(self):
         """Extract a list of other version numbers from the page content"""
-        
+
         # get a navigator object for the record
         navigator = self._get_content_navigator()
-        
+
         # get div containing other versions
         versions_div = navigator.find("div", id="OtherVersions")
-        
+
         # check it was found
         if versions_div is None:
             raise DccRecordTitleNotFoundException()
-        
+
         # find all DCC strings in the list of anchor elements
-        return [self.dcc_patterns.get_dcc_record_version_from_string(str(tag['title'])) for tag in versions_div.find_all('a')]
-    
+        return [self.dcc_patterns.get_version_from_string(str(tag["title"])) \
+            for tag in versions_div.find_all("a")]
+
     def _extract_attached_files(self):
         """Extract a list of attached files from the page content"""
-        
+
         # get a navigator object for the record
         navigator = self._get_content_navigator()
-        
+
         # get files lists
         files_classes = navigator.find_all("dd", class_="FileList")
-        
+
         # empty files list
         files = []
-        
-        # loop over found classes, searching for URLs and creating corresponding DccFile objects in the list
+
+        # loop over found classes, searching for URLs and creating DccFile objects in the list
         for files_class in files_classes:
-            files.extend([record.DccFile(str(url_tag.string), str(url_tag['title']), str(url_tag['href'])) for url_tag in files_class.find_all("a")])
-        
+            files.extend([record.DccFile(str(url_tag.string), str(url_tag["title"]), \
+                str(url_tag["href"])) for url_tag in files_class.find_all("a")])
+
         # return list of DccFile objects
         return files
-    
+
     def _extract_revision_dates(self):
         """Extracts the revision dates from the content, converted to a Python dates"""
-        
+
         # get the creation, contents and metadata revision date texts
-        creation_date_string = self._extract_revision_info_date_string("Document Created:")
-        contents_revision_date_string = self._extract_revision_info_date_string("Contents Revised:")
-        metadata_revision_date_string = self._extract_revision_info_date_string("Metadata Revised:")
-        
+        creation_date_string = self._extract_revision_date_string("Document Created:")
+        contents_rev_date_string = self._extract_revision_date_string("Contents Revised:")
+        metadata_rev_date_string = self._extract_revision_date_string("Metadata Revised:")
+
         # parse strings as dates, which are DCC times
-        creation_date = self._parse_dcc_date_string(creation_date_string)
-        contents_revision_date = self._parse_dcc_date_string(contents_revision_date_string)
-        metadata_revision_date = self._parse_dcc_date_string(metadata_revision_date_string)
-        
+        creation_date = DccRecordParser._parse_dcc_date_string(creation_date_string)
+        contents_rev_date = DccRecordParser._parse_dcc_date_string(contents_rev_date_string)
+        metadata_rev_date = DccRecordParser._parse_dcc_date_string(metadata_rev_date_string)
+
         # return tuple
-        return (creation_date, contents_revision_date, metadata_revision_date)
-        
-    def _parse_dcc_date_string(self, date_string):
-        """Returns a DateTime object from the specified date string, assuming the California timezone
-        
+        return (creation_date, contents_rev_date, metadata_rev_date)
+
+    @staticmethod
+    def _parse_dcc_date_string(date_string):
+        """Returns a DateTime object from the specified date string, assuming the Pacific timezone
+
         :param date_string: date string to parse
         """
-        
+
         # create Pacific timezone
         pacific = pytz.timezone("US/Pacific")
-        
+
         # parse date string localised to Pacific Time
         return pacific.localize(datetime.strptime(date_string, "%d %b %Y, %H:%M"))
 
-    def _extract_revision_info_date_string(self, previous_element_contents):
-        """Extracts a revision info date string specified in the tag after the element with the text specified
-        
-        This can be used to find the creation, contents and metadata revision times from the DCC document.
-        
-        :param previous_element_contents: exact textual contents of the previous element to the one to find
+    def _extract_revision_date_string(self, previous_element_contents):
+        """Extracts a revision info date string as specified by the previous element text
+
+        This can be used to find the creation, contents and metadata revision times from the DCC
+        document by matching the previous element's text, e.g. "Document Created:".
+
+        :param previous_element_contents: exact textual contents of the previous element to the \
+        one to find
         """
-        
+
         # get a navigator object for the record
         navigator = self._get_content_navigator()
-        
+
         # get div containing revision dates
         revisions_div = navigator.find("div", id="RevisionInfo")
-        
+
         # check it was found
         if revisions_div is None:
             raise DccRecordRevisionsNotFoundException()
-        
+
         # find date title
-        date_dt = self._find_child_by_text(revisions_div, previous_element_contents)
-        
+        date_dt = DccRecordParser._find_child_by_text(revisions_div, previous_element_contents)
+
         # check it was found
         if date_dt is None:
             raise DccRecordRevisionsNotFoundException()
-        
+
         # get next dd element, which should contain the date
         date_dd = date_dt.find_next("dd")
-        
+
         # check it was found
         if date_dd is None:
             raise DccRecordRevisionsNotFoundException()
-        
+
         # parse the date text
         return str(date_dd.text)
-    
-    def _find_child_by_text(self, base_element, text, tag=None, class_=None):
+
+    @staticmethod
+    def _find_child_by_text(base_element, text, tag=None, class_=None):
         """Returns the child after the element identified by the specified filter criteria
-        
+
         :param base_element: base element to search children of
         :param text: exact text contents to search for
         :param tag: tag type to search for
         :param class_: class to search for
         """
-        
+
         # validate text
         text = str(text)
-        
+
         # arguments for find
         args = []
         kwargs = {}
-        
+
         # add tag search as first argument, if present
         if tag is not None:
             args.append(tag)
-        
+
         # add class search if present
         if class_ is not None:
             kwargs["class_"] = class_
-        
+
         # iterate over children
         for element in base_element.find_all(*args, **kwargs):
             # check if the text matches
             if element.text == text:
                 return element
-        
+
         # no element found
         return None
 
