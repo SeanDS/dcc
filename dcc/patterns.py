@@ -3,6 +3,8 @@ import logging
 import re
 import record
 from bs4 import BeautifulSoup as bs
+from datetime import datetime
+import pytz
 
 class DccPatterns(object):
     """Handles extraction of useful information from DCC pages.
@@ -198,6 +200,14 @@ class DccRecordParser(object):
         map(dcc_record.add_version_number, other_version_numbers)
         self.logger.info("Found %d other version number(s)", len(other_version_numbers))
         
+        # get the revision dates
+        (creation_date, contents_revision_date, metadata_revision_date) = self._extract_revision_dates()
+        
+        # set them individually
+        dcc_record.creation_date = creation_date
+        dcc_record.contents_revision_date = contents_revision_date
+        dcc_record.metadata_revision_date = metadata_revision_date
+        
         # get attached files
         files = self._extract_attached_files()
         
@@ -255,7 +265,7 @@ class DccRecordParser(object):
         navigator = self._get_content_navigator()
         
         # get div containing other versions
-        versions_div = navigator.find("div", id='OtherVersions')
+        versions_div = navigator.find("div", id="OtherVersions")
         
         # check it was found
         if versions_div is None:
@@ -282,6 +292,102 @@ class DccRecordParser(object):
         
         # return list of DccFile objects
         return files
+    
+    def _extract_revision_dates(self):
+        """Extracts the revision dates from the content, converted to a Python dates"""
+        
+        # get the creation, contents and metadata revision date texts
+        creation_date_string = self._extract_revision_info_date_string("Document Created:")
+        contents_revision_date_string = self._extract_revision_info_date_string("Contents Revised:")
+        metadata_revision_date_string = self._extract_revision_info_date_string("Metadata Revised:")
+        
+        # parse strings as dates, which are DCC times
+        creation_date = self._parse_dcc_date_string(creation_date_string)
+        contents_revision_date = self._parse_dcc_date_string(contents_revision_date_string)
+        metadata_revision_date = self._parse_dcc_date_string(metadata_revision_date_string)
+        
+        # return tuple
+        return (creation_date, contents_revision_date, metadata_revision_date)
+        
+    def _parse_dcc_date_string(self, date_string):
+        """Returns a DateTime object from the specified date string, assuming the California timezone
+        
+        :param date_string: date string to parse
+        """
+        
+        # create Pacific timezone
+        pacific = pytz.timezone("US/Pacific")
+        
+        # parse date string localised to Pacific Time
+        return pacific.localize(datetime.strptime(date_string, "%d %b %Y, %H:%M"))
+
+    def _extract_revision_info_date_string(self, previous_element_contents):
+        """Extracts a revision info date string specified in the tag after the element with the text specified
+        
+        This can be used to find the creation, contents and metadata revision times from the DCC document.
+        
+        :param previous_element_contents: exact textual contents of the previous element to the one to find
+        """
+        
+        # get a navigator object for the record
+        navigator = self._get_content_navigator()
+        
+        # get div containing revision dates
+        revisions_div = navigator.find("div", id="RevisionInfo")
+        
+        # check it was found
+        if revisions_div is None:
+            raise DccRecordRevisionsNotFoundException()
+        
+        # find date title
+        date_dt = self._find_child_by_text(revisions_div, previous_element_contents)
+        
+        # check it was found
+        if date_dt is None:
+            raise DccRecordRevisionsNotFoundException()
+        
+        # get next dd element, which should contain the date
+        date_dd = date_dt.find_next("dd")
+        
+        # check it was found
+        if date_dd is None:
+            raise DccRecordRevisionsNotFoundException()
+        
+        # parse the date text
+        return str(date_dd.text)
+    
+    def _find_child_by_text(self, base_element, text, tag=None, class_=None):
+        """Returns the child after the element identified by the specified filter criteria
+        
+        :param base_element: base element to search children of
+        :param text: exact text contents to search for
+        :param tag: tag type to search for
+        :param class_: class to search for
+        """
+        
+        # validate text
+        text = str(text)
+        
+        # arguments for find
+        args = []
+        kwargs = {}
+        
+        # add tag search as first argument, if present
+        if tag is not None:
+            args.append(tag)
+        
+        # add class search if present
+        if class_ is not None:
+            kwargs["class_"] = class_
+        
+        # iterate over children
+        for element in base_element.find_all(*args, **kwargs):
+            # check if the text matches
+            if element.text == text:
+                return element
+        
+        # no element found
+        return None
 
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
@@ -293,4 +399,8 @@ class InvalidDccNumberException(Exception):
 
 class DccRecordTitleNotFoundException(Exception):
     """Exception for when a DCC record title is not found in the page content"""
+    pass
+
+class DccRecordRevisionsNotFoundException(Exception):
+    """Exception for when DCC record revisions are not found in the page content"""
     pass

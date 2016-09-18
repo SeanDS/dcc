@@ -106,6 +106,11 @@ class DccRecord(object):
     """Other version numbers associated with this record"""
     other_version_numbers = []
     
+    """Revision dates"""
+    creation_date = None
+    contents_revision_date = None
+    metadata_revision_date = None
+    
     """Files associated with this record"""
     files = []
     
