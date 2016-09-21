@@ -5,8 +5,8 @@
 import urllib2
 import abc
 import logging
-import dcc.record as record
-import dcc.patterns as patterns
+import dcc.record
+import dcc.patterns
 
 class Fetcher(object):
     """Represents a collection of tools to communicate with the DCC server"""
@@ -14,16 +14,28 @@ class Fetcher(object):
     # abstract method
     __metaclass__ = abc.ABCMeta
 
-    def fetch_dcc_record(self, dcc_number, download_files=False):
+    def fetch_dcc_record(self, *args, **kwargs):
         """Fetches the DCC record specified by the provided number
 
-        :param dcc_number: DCC number object representing record (or, alternatively, the string)
+        Supports arguments for dcc.record.DccNumber.__init__(), or a DccNumber object.
+
         :param download_files: whether to download the files attached to the record
         """
 
-        # create DCC number object if necessary
-        if isinstance(dcc_number, str):
-            dcc_number = record.DccNumber(dcc_number)
+        # get download_files parameter (a bit hacky due to Python 2's argument handling behaviour)
+        download_files = bool(kwargs.get('download_files', False))
+
+        # remove download_files from kwargs
+        if kwargs.has_key('download_files'):
+            del kwargs['download_files']
+
+        # get DCC number from input(s)
+        if isinstance(args[0], dcc.record.DccNumber):
+            # DCC number provided
+            dcc_number = args[0]
+        else:
+            # DCC number to be created from inputs
+            dcc_number = dcc.record.DccNumber(*args, **kwargs)
 
         # create the DCC URL
         url = self._build_dcc_url(dcc_number)
@@ -32,7 +44,7 @@ class Fetcher(object):
         contents = self._get_url_contents(url)
 
         # parse new DCC record
-        dcc_record = patterns.DccRecordParser(contents).to_record()
+        dcc_record = dcc.patterns.DccRecordParser(contents).to_record()
 
         # make sure its number matches the request
         if dcc_record.dcc_number != dcc_number:
