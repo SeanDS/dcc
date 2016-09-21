@@ -92,11 +92,7 @@ class HttpFetcher(Fetcher):
         """Builds a DCC URL given the specified DCC number"""
 
         # create URL
-        url = self.protocol + "://" + self.servers[0] + "/" + str(dcc_number)
-
-        # add a version if present
-        if dcc_number.version is not None:
-            url += record.DccNumber.get_version_suffix(dcc_number.version)
+        url = self.protocol + "://" + self.servers[0] + "/" + dcc_number.get_url_path()
 
         return url
 

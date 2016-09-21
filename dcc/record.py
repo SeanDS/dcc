@@ -167,6 +167,19 @@ class DccNumber(object):
         else:
             return "-v{0}".format(self.version)
 
+    def get_url_path(self):
+        """Returns the URL path that represents this DCC number"""
+
+        # get version suffix, if it is known
+        if self.version is not None:
+            version_suffix = self.get_version_suffix()
+        else:
+            # make version empty
+            version_suffix = ""
+
+        # return the URL with appropriate version suffix
+        return "{0}{1}{2}".format(self.category, self.numeric, version_suffix)
+
 class DccRecord(object):
     """Represents a DCC record"""
 
