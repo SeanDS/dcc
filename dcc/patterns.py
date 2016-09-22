@@ -134,6 +134,9 @@ class DccRecordParser(object):
     def to_record(self):
         """Returns a DccRecord representing the content"""
 
+        # check that we have a valid record
+        self.validate()
+
         # get DCC number
         dcc_number = self._extract_dcc_number()
 
@@ -167,6 +170,30 @@ class DccRecordParser(object):
 
         # return the new record
         return dcc_record
+
+    def validate(self):
+        """Validates the page content to make sure it is a proper record"""
+
+        # get a navigator object for the record
+        navigator = self._get_content_navigator()
+
+        # check if we have the login page, specified by the presence of an h3 with specific text
+        if navigator.find("h3", text="Accessing private documents"):
+            raise NotLoggedInException()
+
+        # check if we have the default page (DCC redirects here for all unrecognised requests)
+        if navigator.find("strong", text="Search for Documents by"):
+            raise UnrecognisedDccRecordException()
+
+        # check if we have the error page
+        if navigator.find("dt", class_="Error"):
+            # we have an error, but what is its message?
+            if navigator.find("dd", text=re.compile("User .*? is not authorized to view this document.")):
+                # unauthorised to view
+                raise UnauthorisedAccessException()
+            else:
+                # unknown error
+                raise UnknownDccErrorException()
 
     def _get_content_navigator(self):
         """Gets a navigator object for the page content"""
@@ -355,4 +382,29 @@ class DccRecordTitleNotFoundException(Exception):
 
 class DccRecordRevisionsNotFoundException(Exception):
     """Exception for when DCC record revisions are not found in the page content"""
+    pass
+
+class NotLoggedInException(Exception):
+    """Exception for when the user is not logged in"""
+
+    # error message given to user
+    message = "You are not logged in to the DCC, or the specified cookie string is invalid (see \
+the README for more information)"
+
+    def __init__(self, *args, **kwargs):
+        """Constructs a not logged in exception"""
+
+        # call parent constructor with the error message
+        super(NotLoggedInException, self).__init__(self.message, *args, **kwargs)
+
+class UnrecognisedDccRecordException(Exception):
+    """Exception for when a page is not recognised by the DCC server"""
+    pass
+
+class UnauthorisedAccessException(Exception):
+    """Exception for when a document is not available to the user to be viewed"""
+    pass
+
+class UnknownDccErrorException(Exception):
+    """Exception for when an unknown error is reported by the DCC"""
     pass

@@ -121,6 +121,5 @@ logging.getLogger().setLevel(logging.DEBUG)
 ```
 
 ## Future improvements
- - Graceful handling of non 2xx HTTP codes
  - Local archiving
  - Log in

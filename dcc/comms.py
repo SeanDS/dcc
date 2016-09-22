@@ -53,11 +53,11 @@ class Fetcher(object):
                 if dcc_number.version != dcc_record.dcc_number.version:
                     # correct document number, but incorrect version
                     raise DifferentDccRecordException("The retrieved record has the correct \
-                        number but not the correct version")
+number but not the correct version")
         else:
             # incorrect document number
-            raise DifferentDccRecordException("The retrieved record is different from the \
-                requested one")
+            raise DifferentDccRecordException("The retrieved record number ({0}) is different from the \
+requested one ({1})".format(dcc_record.dcc_number, dcc_number))
 
         # download the files associated with the record, if requested
         if download_files:
