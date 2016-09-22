@@ -86,7 +86,7 @@ class DccPatterns(object):
         # check if a version was matched
         if len(group) > 3:
             # version is 3rd item
-            version = group[3]
+            version = int(group[3])
         else:
             version = None
 
