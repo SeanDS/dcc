@@ -8,6 +8,21 @@ import logging
 import subprocess
 import tempfile
 
+class DccAuthor(object):
+    """Represents a DCC author"""
+
+    # author name
+    name = None
+
+    def __init__(self, name):
+        """Instantiates a DCC author
+
+        :param name: name of the author
+        """
+
+        # set name
+        self.name = str(name)
+
 class DccNumber(object):
     """Represents a DCC number, including category and numeric identifier"""
 
@@ -200,6 +215,9 @@ class DccRecord(object):
     # record title
     title = None
 
+    # authors
+    authors = None
+
     # other version numbers associated with this record
     other_version_numbers = []
 
@@ -232,6 +250,12 @@ class DccRecord(object):
         """String representation of the DCC record"""
 
         return "{0}: {1}".format(self.dcc_number, self.title)
+
+    @property
+    def author_names(self):
+        """Returns a list of author names associated with this record"""
+
+        return [author.name for author in self.authors]
 
     @property
     def versions(self):

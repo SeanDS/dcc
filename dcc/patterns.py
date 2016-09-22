@@ -19,6 +19,9 @@ class DccPatterns(object):
     # Version strings on the DCC are either -vX where X is an integer > 0, or -x0
     _dcc_record_version_regex = "[a-z]\\d+-[vx](\\d+)"
 
+    # author ID url regular expression
+    _author_url_id_regex = ".*?authorid=(\\d+)"
+
     # regex string match settings
     str_match_settings = re.IGNORECASE
 
@@ -43,6 +46,9 @@ class DccPatterns(object):
         self._regex_dcc_record_version_mixed = re.compile(".*?" \
             + self._dcc_record_version_regex + ".*?", self.str_match_settings)
 
+        # regex matching author IDs
+        self._regex_url_author_id = re.compile(self._author_url_id_regex)
+
     def get_dcc_number_from_string(self, string):
         """Extracts the DCC number from a string and returns a DccNumber object
 
@@ -62,6 +68,25 @@ class DccPatterns(object):
         # search for matches and pass them to another function to validate and create the object
         return DccPatterns._version_from_regex_search( \
             self._regex_dcc_record_version_mixed.search(string))
+
+    def get_author_id_from_url(self, url):
+        """Extracts the author ID from an author URL
+
+        :param url: URL to extract ID from
+        """
+        print url
+        # search for id
+        search = self._regex_url_author_id.search(url)
+
+        # if the regex search is NoneType, no id was found
+        if search is None:
+            raise DccAuthorIdNotFoundException()
+
+        # extract group
+        group = search.groups()
+
+        # first match is the ID
+        return int(group[0])
 
     @staticmethod
     def _dcc_number_from_regex_search(regex_search):
@@ -145,6 +170,9 @@ class DccRecordParser(object):
 
         # set its title
         dcc_record.title = self._extract_title()
+
+        # set authors
+        dcc_record.authors = self._extract_authors()
 
         # get other version numbers
         other_version_numbers = self._extract_other_version_numbers()
@@ -354,7 +382,7 @@ class DccRecordParser(object):
         if related_links is None:
             return related
 
-        # get reference list span
+        # loop over related links
         for related_link in related_links:
             # create new DCC record for the related document
             record = dcc.record.DccRecord(dcc.record.DccNumber(str(related_link['title'])))
@@ -367,6 +395,45 @@ class DccRecordParser(object):
 
         # return list of related documents
         return related
+
+    def _extract_authors(self):
+        """Extracts the authors from the page"""
+
+        # get a navigator object for the record
+        navigator = self._get_content_navigator()
+
+        # empty list of authors
+        authors = []
+
+        # get the author div
+        author_div = navigator.find("div", id="Authors")
+
+        # if there is no author div, return
+        if author_div is None:
+            return authors
+
+        # extract author links
+        author_links = author_div.find_all("a")
+
+        # if there are no author links, return
+        if author_links is None:
+            return authors
+
+        # loop over author links
+        for author_link in author_links:
+            # get name, with strip() to get rid of whitespace
+            author_name = author_link.text.strip()
+
+            # create author object
+            author = dcc.record.DccAuthor(author_name)
+
+            # set ID
+            author.id = self.dcc_patterns.get_author_id_from_url(author_link['href'])
+
+            # add to list
+            authors.append(author)
+
+        return authors
 
     @staticmethod
     def _parse_dcc_date_string(date_string):
@@ -454,6 +521,10 @@ class DccRecordParser(object):
 
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
+    pass
+
+class DccAuthorIdNotFoundException(Exception):
+    """Exception for when a DCC author ID is not found"""
     pass
 
 class DccRecordTitleNotFoundException(Exception):
