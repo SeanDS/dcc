@@ -57,6 +57,11 @@ class DccNumber(object):
             if len(first_id) < 2:
                 raise ValueError("Invalid DCC number; should be of the form \"T1234567\"")
 
+            # get rid of first "LIGO-" if present
+            if first_id.startswith('LIGO-'):
+                # chop off first 5 characters
+                first_id = first_id[5:]
+
             try:
                 # find where the hyphen denoting version is
                 hyphen_index = first_id.index('-')
@@ -206,6 +211,12 @@ class DccRecord(object):
     # files associated with this record
     files = []
 
+    # referencing documents
+    referenced_by = []
+
+    # related documents
+    related = []
+
     def __init__(self, dcc_number):
         """Instantiates a DCC record
 
@@ -273,6 +284,16 @@ class DccRecord(object):
             return max_other_version
         else:
             return self.dcc_number.version
+
+    def get_refenced_by_titles(self):
+        """Returns a list of titles of documents referencing this one"""
+
+        return [str(record) for record in self.referenced_by]
+
+    def get_related_titles(self):
+        """Returns a list of titles of documents related to this one"""
+
+        return [str(record) for record in self.related]
 
 class DccFile(object):
     """Represents a file attached to a DCC document"""

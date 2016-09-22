@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 from bs4 import BeautifulSoup as bs
 import pytz
-import dcc.record as record
+import dcc.record
 
 class DccPatterns(object):
     """Handles extraction of useful information from DCC pages."""
@@ -91,7 +91,7 @@ class DccPatterns(object):
             version = None
 
         # return a new DccNumber object representing the matched information
-        return record.DccNumber(category_letter, dcc_numeric, version)
+        return dcc.record.DccNumber(category_letter, dcc_numeric, version)
 
     @staticmethod
     def _version_from_regex_search(regex_search):
@@ -141,7 +141,7 @@ class DccRecordParser(object):
         dcc_number = self._extract_dcc_number()
 
         # create the new DCC record
-        dcc_record = record.DccRecord(dcc_number)
+        dcc_record = dcc.record.DccRecord(dcc_number)
 
         # set its title
         dcc_record.title = self._extract_title()
@@ -167,6 +167,12 @@ class DccRecordParser(object):
         # set the files
         map(dcc_record.add_file, files)
         self.logger.info("Found %d attached file(s)", len(files))
+
+        # get and set the referencing records
+        dcc_record.referenced_by = self._extract_referencing_records()
+
+        # get and set the related records
+        dcc_record.related = self._extract_related_records()
 
         # return the new record
         return dcc_record
@@ -266,7 +272,7 @@ class DccRecordParser(object):
 
         # loop over found classes, searching for URLs and creating DccFile objects in the list
         for files_class in files_classes:
-            files.extend([record.DccFile(str(url_tag.string), str(url_tag["title"]), \
+            files.extend([dcc.record.DccFile(str(url_tag.string), str(url_tag["title"]), \
                 str(url_tag["href"])) for url_tag in files_class.find_all("a")])
 
         # return list of DccFile objects
@@ -287,6 +293,80 @@ class DccRecordParser(object):
 
         # return tuple
         return (creation_date, contents_rev_date, metadata_rev_date)
+
+    def _extract_referencing_records(self):
+        """Extracts the referencing records from the page"""
+
+        # get a navigator object for the record
+        navigator = self._get_content_navigator()
+
+        # empty list of references
+        references = []
+
+        # get the reference div
+        ref_div = navigator.find("div", id="XReffedBy")
+
+        # if there is no reference div, return
+        if ref_div is None:
+            return references
+
+        # extract reference links
+        reference_links = ref_div.find_all("a")
+
+        # if there are no references, return
+        if reference_links is None:
+            return references
+
+        # loop over references
+        for reference_link in reference_links:
+            # create new DCC record for the reference
+            record = dcc.record.DccRecord(dcc.record.DccNumber(str(reference_link['title'])))
+
+            # set its title
+            record.title = str(reference_link.text)
+
+            # add to list
+            references.append(record)
+
+        # return list of references
+        return references
+
+    def _extract_related_records(self):
+        """Extracts the related records from the page"""
+
+        # get a navigator object for the record
+        navigator = self._get_content_navigator()
+
+        # empty list of related documents
+        related = []
+
+        # get the related div
+        related_div = navigator.find("div", id="XRefs")
+
+        # if there is no related div, return
+        if related_div is None:
+            return related
+
+        # extract related links
+        related_links = related_div.find_all("a")
+
+        # if there are no related links, return
+        if related_links is None:
+            return related
+
+        # get reference list span
+        for related_link in related_links:
+            # create new DCC record for the related document
+            record = dcc.record.DccRecord(dcc.record.DccNumber(str(related_link['title'])))
+
+            # set its title
+            record.title = str(related_link.text)
+
+            # add to list
+            related.append(record)
+
+        # return list of related documents
+        return related
 
     @staticmethod
     def _parse_dcc_date_string(date_string):
