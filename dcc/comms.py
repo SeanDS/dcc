@@ -113,9 +113,15 @@ class HttpFetcher(Fetcher):
         """Builds a DCC URL given the specified DCC number"""
 
         # create URL
-        url = self.protocol + "://" + self.servers[0] + "/" + dcc_number.get_url_path()
+        url = self.protocol + "://" + self.get_preferred_server() + "/" + dcc_number.get_url_path()
 
         return url
+
+    def get_preferred_server(self):
+        """Returns the user's preferred server"""
+
+        # for now, just return the main one
+        return self.servers[0]
 
     def _get_url_contents(self, url):
         opener = urllib2.build_opener()
