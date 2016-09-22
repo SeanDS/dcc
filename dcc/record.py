@@ -133,6 +133,16 @@ class DccNumber(object):
 
         return int(version) >= 0
 
+    def numbers_equal(self, other_dcc_number):
+        """Checks if the category and numeric parts of this number and the specified one match
+
+        :param other_dcc_number: other DCC number to check match for
+        """
+
+        # compare the category and number
+        return (other_dcc_number.category == self.category) and \
+            (other_dcc_number.numeric == self.numeric)
+
     def __str__(self):
         """String representation of the DCC number"""
 
@@ -144,9 +154,8 @@ class DccNumber(object):
         :param other_dcc_number: other DCC number to compare
         """
 
-        # compare the category and number
-        return (other_dcc_number.category == self.category) and \
-            (other_dcc_number.numeric == self.numeric)
+        # compare the category, number and version
+        return self.numbers_equal(other_dcc_number) and (other_dcc_number.version == self.version)
 
     def __ne__(self, other_dcc_number):
         """Checks if the specified DCC number is not equal to this one

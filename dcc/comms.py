@@ -47,8 +47,17 @@ class Fetcher(object):
         dcc_record = dcc.patterns.DccRecordParser(contents).to_record()
 
         # make sure its number matches the request
-        if dcc_record.dcc_number != dcc_number:
-            raise DifferentDccRecordException()
+        if dcc_number.numbers_equal(dcc_record.dcc_number):
+            # check if the version matches, if it was specified
+            if dcc_number.version is not None:
+                if dcc_number.version != dcc_record.dcc_number.version:
+                    # correct document number, but incorrect version
+                    raise DifferentDccRecordException("The retrieved record has the correct \
+                        number but not the correct version")
+        else:
+            # incorrect document number
+            raise DifferentDccRecordException("The retrieved record is different from the \
+                requested one")
 
         # download the files associated with the record, if requested
         if download_files:
