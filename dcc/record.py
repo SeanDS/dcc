@@ -7,6 +7,151 @@ import os
 import logging
 import subprocess
 import tempfile
+import dcc.comms
+
+class DccArchive(object):
+    """Represents a collection of DCC documents"""
+
+    # archive dict
+    records = {}
+
+    def __init__(self, fetcher='http', cookies=''):
+        """Instantiates a DCC archive
+
+        :param fetcher: type of fetcher to use, or fetcher object
+        :param cookies: cookies to pass to fetcher, if necessary
+        """
+
+        # create logger
+        self.logger = logging.getLogger("archive")
+
+        # parse the stated fetch method
+        if isinstance(fetcher, dcc.comms.Fetcher):
+            # a fetcher was provided already
+            self.fetcher = fetcher
+        else:
+            # validate fetcher and cookies as strings
+            fetcher = str(fetcher)
+            cookies = str(cookies)
+
+            if fetcher == 'http':
+                # create an HTTP fetcher
+                self.fetcher = dcc.comms.HttpFetcher(cookies)
+            else:
+                # fetcher not recognised
+                raise FetcherNotRecognisedException()
+
+    def __str__(self):
+        """String representation of the archive"""
+
+        return "Archive containing {0} record(s)".format(len(self.records))
+
+    def __repr__(self):
+        """Print representation of the archive"""
+
+        return str(self)
+
+    def fetch_record(self, *args, **kwargs):
+        """Fetches a DCC record and adds it to the archive
+
+        Accepts arguments for Fetcher.fetch_dcc_record
+        """
+
+        # get record
+        record = self.fetcher.fetch_dcc_record(*args, **kwargs)
+
+        # add record to archive
+        self.add_record(record)
+
+    def add_record(self, record, overwrite=False):
+        """Adds the specified record to the archive
+
+        :param record: record to add
+        :param overwrite: whether to overwrite an existing record
+        """
+
+        # get the DCC number string
+        dcc_number_str = dcc.record.DccArchive.get_dcc_number_str(record.dcc_number)
+
+        # check if record already exists
+        if dcc_number_str in self.records.keys():
+            # check if the user wants it overwritten
+            if not overwrite:
+                # user doesn't want overwriting, so raise an exception
+                raise RecordCannotBeOverwrittenException()
+
+            self.logger.info("Overwriting existing entry %s", dcc_number_str)
+
+        # set the record
+        self.records[dcc_number_str] = record
+
+        self.logger.info("Entry %s written to archive", dcc_number_str)
+
+    def has_record(self, dcc_number):
+        """Works out if the specified DCC number exists in the archive
+
+        The DCC number specified can either be a string or a DccNumber object, but it must contain
+        a version number. For non-versioned searches, use has_document.
+
+        :param dcc_number: DCC number to check, either a string or a DccNumber
+        """
+
+        # if the number is not a DccNumber, parse it as one
+        if not isinstance(dcc_number, dcc.record.DccNumber):
+            dcc_number = dcc.record.DccNumber(str(dcc_number))
+
+        # make sure a version is present
+        if not dcc_number.has_version():
+            raise NoDccRecordVersionSpecifiedException()
+
+        # check if the DCC number string is in the record dict keys
+        return dcc.record.DccArchive.get_dcc_number_str(dcc_number) in self.records.keys()
+
+    def has_document(self, dcc_number):
+        """Checks if the archive contains any version of the specified DCC number
+
+        This is much less efficient than has_record.
+
+        :param dcc_number: DCC number to check
+        """
+
+        # if the number is not a DccNumber, parse it as one
+        if not isinstance(dcc_number, dcc.record.DccNumber):
+            dcc_number = dcc.record.DccNumber(str(dcc_number))
+
+        # if a version is present, tell the user it is being ignored
+        if dcc_number.has_version():
+            self.logger.info("Ignoring version number in search for %s", dcc_number)
+
+        # get the DCC number string without version suffix
+        dcc_number_str = dcc_number.string_repr(version=False)
+
+        # search for records beginning with the no-version number
+        for this_dcc_str, record in self.records.items():
+            # parse a DCC number from the key
+            this_dcc_number = dcc.record.DccNumber(this_dcc_str)
+
+            # check if the strings match
+            if this_dcc_number.string_repr(version=False) == dcc_number_str:
+                # found a match
+                return True
+
+        return False
+
+    def list_records(self):
+        """Lists the records contained within the archive"""
+
+        return [str(record) for record in self.records.values()]
+
+    @staticmethod
+    def get_dcc_number_str(dcc_number, version=True):
+        """Creates a string representing the specified DCC number, optionally with version
+
+        :param version: whether to include version
+        """
+
+        # use the DCC number's string representation method
+        return dcc_number.string_repr(version=version)
 
 class DccAuthor(object):
     """Represents a DCC author"""
@@ -163,10 +308,25 @@ class DccNumber(object):
         return (other_dcc_number.category == self.category) and \
             (other_dcc_number.numeric == self.numeric)
 
+    def string_repr(self, version=True):
+        """String representation of the DCC number, with optional version number
+
+        :param version: whether to include version in string
+        """
+
+        # empty version string
+        version_string = ""
+
+        # get version string if requested
+        if version:
+            version_string = self.get_version_suffix()
+
+        return "{0}{1}{2}".format(self.category, self.numeric, version_string)
+
     def __str__(self):
         """String representation of the DCC number"""
 
-        return "{0}{1}{2}".format(self.category, self.numeric, self.get_version_suffix())
+        return self.string_repr(version=True)
 
     def __eq__(self, other_dcc_number):
         """Checks if the specified DCC number is equal to this one
@@ -189,12 +349,17 @@ class DccNumber(object):
         """Returns the DCC URL suffix for the version number"""
 
         # version 0 should end "x0", otherwise "v1" etc.
-        if self.version is None:
+        if not self.has_version():
             return "-v?"
         elif self.version is 0:
             return "-x0"
         else:
             return "-v{0}".format(self.version)
+
+    def has_version(self):
+        """Checks if the DCC number has a version associated with it"""
+
+        return self.version is not None
 
     def get_url_path(self):
         """Returns the URL path that represents this DCC number"""
@@ -408,4 +573,16 @@ class InvalidDccNumberException(Exception):
 
 class DataNotDownloadedException(Exception):
     """Exception for when file data is not downloaded"""
+    pass
+
+class FetcherNotRecognisedException(Exception):
+    """Exception for when the specified fetcher is not recognised"""
+    pass
+
+class RecordCannotBeOverwrittenException(Exception):
+    """Exception for when a record can't be overwritten due to a user option"""
+    pass
+
+class NoDccRecordVersionSpecifiedException(Exception):
+    """Exception for when no version is specified for a DCC record when required"""
     pass
