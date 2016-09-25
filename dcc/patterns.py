@@ -74,7 +74,7 @@ class DccPatterns(object):
 
         :param url: URL to extract ID from
         """
-        print url
+
         # search for id
         search = self._regex_url_author_id.search(url)
 
@@ -421,6 +421,10 @@ class DccRecordParser(object):
 
         # loop over author links
         for author_link in author_links:
+            # skip email links
+            if author_link['href'].startswith('mailto'):
+                continue
+
             # get name, with strip() to get rid of whitespace
             author_name = author_link.text.strip()
 
