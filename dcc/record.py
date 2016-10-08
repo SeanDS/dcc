@@ -8,12 +8,10 @@ import logging
 import subprocess
 import tempfile
 import dcc.comms
+import dcc.patterns
 
 class DccArchive(object):
     """Represents a collection of DCC documents"""
-
-    # archive dict
-    records = {}
 
     def __init__(self, fetcher='http', cookies=''):
         """Instantiates a DCC archive
@@ -41,6 +39,9 @@ class DccArchive(object):
                 # fetcher not recognised
                 raise FetcherNotRecognisedException()
 
+        # create empty archive dict
+        self.records = {}
+
     def __str__(self):
         """String representation of the archive"""
 
@@ -54,14 +55,44 @@ class DccArchive(object):
     def fetch_record(self, *args, **kwargs):
         """Fetches a DCC record and adds it to the archive
 
-        Accepts arguments for Fetcher.fetch_dcc_record
+        :param download_files: whether to download the files attached to the record
+        :param overwrite: whether to overwrite an existing identical record
         """
 
-        # get record
-        record = self.fetcher.fetch_dcc_record(*args, **kwargs)
+        # get download_files parameter (a bit hacky due to Python 2's argument handling behaviour)
+        download_files = bool(kwargs.get('download_files', False))
+
+        # get overwrite parameter
+        overwrite = bool(kwargs.get('overwrite', False))
+
+        # remove download_files from kwargs
+        if kwargs.has_key('download_files'):
+            del kwargs['download_files']
+
+        # remove overwrite from kwargs
+        if kwargs.has_key('overwrite'):
+            del kwargs['overwrite']
+
+        # get DCC number from input(s)
+        if isinstance(args[0], DccNumber):
+            # DCC number provided
+            dcc_number = args[0]
+        else:
+            # DCC number to be created from inputs
+            dcc_number = DccNumber(*args, **kwargs)
+
+        # create record
+        record = DccRecord._fetch(self.fetcher, dcc_number)
+
+        # download the files associated with the record, if requested
+        if download_files:
+            self.download_record_file_data(record)
 
         # add record to archive
-        self.add_record(record)
+        self.add_record(record, overwrite=overwrite)
+
+        # return the record
+        return record
 
     def add_record(self, record, overwrite=False):
         """Adds the specified record to the archive
@@ -143,6 +174,49 @@ class DccArchive(object):
 
         return [str(record) for record in self.records.values()]
 
+    def download_record_file_data(self, record):
+        """Downloads the file data attached to the specified record
+
+        :param record: DCC record to download files for
+        """
+
+        # count files
+        total_count = len(record.files)
+
+        # current file count
+        current_count = 1
+
+        # loop over files in this record
+        for dcc_file in record.files:
+            self.logger.info("(%d/%d) Fetching %s", current_count, total_count, dcc_file)
+
+            # fetch file contents
+            self.download_file_data(dcc_file)
+
+            # increment counter
+            current_count += 1
+
+    def download_file_data(self, dcc_file):
+        """Fetches the files attached to the specified record
+
+        :param dcc_file: file to download data for
+        """
+
+        # download the file
+        dcc_file._download(self.fetcher)
+
+    def get_author_dcc_numbers(self, author):
+        """Fetches the DCC numbers associated with the author
+
+        Note that this is limited by the DCC's limit on returned records
+        (default 500).
+
+        :param author: author to fetch numbers for
+        """
+
+        # return the author's numbers
+        return author._get_dcc_numbers(self.fetcher)
+
     @staticmethod
     def get_dcc_number_str(dcc_number, version=True):
         """Creates a string representing the specified DCC number, optionally with version
@@ -156,17 +230,49 @@ class DccArchive(object):
 class DccAuthor(object):
     """Represents a DCC author"""
 
-    # author name
-    name = None
-
-    def __init__(self, name):
+    def __init__(self, name, uid):
         """Instantiates a DCC author
 
         :param name: name of the author
+        :param uid: DCC ID number for the author
         """
 
         # set name
         self.name = str(name)
+
+        # set id
+        self.uid = int(uid)
+
+    def __str__(self):
+        """String representation of this author"""
+
+        return "{0} (id {1})".format(self.name, self.uid)
+
+    def __repr__(self):
+        """Representation of this author"""
+
+        return self.__str__()
+
+    def _get_dcc_numbers(self, fetcher):
+        """Fetches a list of DCC numbers from this author
+
+        Note that this may not be complete due to the DCC's limit on the number
+        of documents displayed on the author's page (default 500).
+
+        :param fetcher: fetcher object to use
+        """
+
+        # download author page
+        author_page = fetcher.fetch_author_page(self)
+
+        # parse the page
+        parser = dcc.patterns.DccAuthorPageParser(author_page)
+
+        # check that we have a valid author page
+        parser.validate()
+
+        # get the list of DCC numbers
+        return parser.extract_dcc_numbers()
 
 class DccNumber(object):
     """Represents a DCC number, including category and numeric identifier"""
@@ -186,23 +292,14 @@ class DccNumber(object):
         "T": "Techical notes"
     }
 
-    # category
-    category = None
-
-    # numeric part
-    numeric = None
-
-    # version of the DCC record
-    version = None
-
     def __init__(self, first_id, numeric=None, version=None):
         """Instantiates a DccNumber object
 
         You must either provide a string containing the DCC number, or the
         separate category and numeric parts, with optional version, e.g.
             __init__("T1234567")
-            __init__("T", 1234567) # equivalent to T1234567
-            __init__("T", 1234567, 4) # equivalent to T1234567-v4
+            __init__("T", "0123456") # equivalent to T0123456
+            __init__("T", "0123456", 4) # equivalent to T0123456-v4
 
         :param first_id: category character, or the full DCC number
         :param numeric: numeric designator of DCC document
@@ -215,7 +312,7 @@ class DccNumber(object):
         if numeric is None:
             # full number specified, so check it's long enough
             if len(first_id) < 2:
-                raise ValueError("Invalid DCC number; should be of the form \"T1234567\"")
+                raise ValueError("Invalid DCC number; should be of the form \"T0123456\"")
 
             # get rid of first "LIGO-" if present
             if first_id.startswith('LIGO-'):
@@ -236,13 +333,13 @@ class DccNumber(object):
                         string")
 
                 # numeric part is between second character and index
-                numeric = int(first_id[1:hyphen_index])
+                numeric = str(first_id[1:hyphen_index])
 
                 # version is last part, two places beyond start of hyphen
                 version = int(first_id[hyphen_index+2:])
             else:
                 # numeric is everything after first character
-                numeric = int(first_id[1:])
+                numeric = str(first_id[1:])
 
             # category should be first
             category = str(first_id[0])
@@ -328,6 +425,11 @@ class DccNumber(object):
 
         return self.string_repr(version=True)
 
+    def __repr__(self):
+        """Representation of the DCC number"""
+
+        return self.__str__()
+
     def __eq__(self, other_dcc_number):
         """Checks if the specified DCC number is equal to this one
 
@@ -377,29 +479,6 @@ class DccNumber(object):
 class DccRecord(object):
     """Represents a DCC record"""
 
-    # record title
-    title = None
-
-    # authors
-    authors = None
-
-    # other version numbers associated with this record
-    other_version_numbers = []
-
-    # revision dates
-    creation_date = None
-    contents_revision_date = None
-    metadata_revision_date = None
-
-    # files associated with this record
-    files = []
-
-    # referencing documents
-    referenced_by = []
-
-    # related documents
-    related = []
-
     def __init__(self, dcc_number):
         """Instantiates a DCC record
 
@@ -409,12 +488,100 @@ class DccRecord(object):
         # create logger
         self.logger = logging.getLogger("record")
 
+        # set number
         self.dcc_number = dcc_number
 
+        # set defaults
+        self.other_version_numbers = []
+        self.files = []
+        self.referenced_by = []
+        self.related = []
+
     def __str__(self):
-        """String representation of the DCC record"""
+        """String representation of this DCC record"""
 
         return "{0}: {1}".format(self.dcc_number, self.title)
+
+    def __repr__(self):
+        """Representation of this DCC record"""
+
+        return self.__str__()
+
+    @classmethod
+    def _fetch(cls, fetcher, dcc_number):
+        """Fetches and creates a new DCC record
+
+        Optionally downloads associated files.
+
+        :param fetcher: fetcher to use to get the page content
+        :param dcc_number: DCC number associated with the record to fetch
+        """
+
+        # create logger
+        logger = logging.getLogger("record")
+
+        # get the page contents
+        contents = fetcher.fetch_record_page(dcc_number)
+
+        # parse new DCC record
+        parser = dcc.patterns.DccRecordParser(contents)
+
+        # check that we have a valid record
+        parser.validate()
+
+        # get DCC number
+        this_dcc_number = parser.extract_dcc_number()
+
+        # make sure its number matches the request
+        if this_dcc_number.numbers_equal(dcc_number):
+            # check if the version matches, if it was specified
+            if dcc_number.version is not None:
+                if this_dcc_number.version != dcc_number.version:
+                    # correct document number, but incorrect version
+                    raise DifferentDccRecordException("The retrieved record has the correct \
+number but not the correct version")
+        else:
+            # incorrect document number
+            raise DifferentDccRecordException("The retrieved record number ({0}) is different from the \
+requested one ({1})".format(this_dcc_number, dcc_number))
+
+        # create record with DCC number
+        record = DccRecord(this_dcc_number)
+
+        # set its title
+        record.title = parser.extract_title()
+
+        # set authors
+        record.authors = parser.extract_authors()
+
+        # get other version numbers
+        record.other_version_numbers = parser.extract_other_version_numbers()
+        logger.info("Found %d other version number(s)", len(record.other_version_numbers))
+
+        # get the revision dates
+        (creation_date, contents_rev_date, metadata_rev_date) = \
+        parser.extract_revision_dates()
+
+        # set them individually
+        record.creation_date = creation_date
+        record.contents_revision_date = contents_rev_date
+        record.metadata_revision_date = metadata_rev_date
+
+        # get attached files
+        files = parser.extract_attached_files()
+
+        # set the files
+        map(record.add_file, files)
+        logger.info("Found %d attached file(s)", len(files))
+
+        # get and set the referencing records
+        record.referenced_by = parser.extract_referencing_records()
+
+        # get and set the related records
+        record.related = parser.extract_related_records()
+
+        # return the new record
+        return record
 
     @property
     def author_names(self):
@@ -436,20 +603,6 @@ class DccRecord(object):
         """Returns a list of filenames associated with this record"""
 
         return [str(dcc_file) for dcc_file in self.files]
-
-    def add_version_number(self, version_number):
-        """Adds the specified other version number to the record
-
-        :param version_number: version number to add
-        """
-
-        # validate
-        version_number = int(version_number)
-
-        self.logger.debug("Adding other version number %d", version_number)
-
-        # add to version list
-        self.other_version_numbers.append(version_number)
 
     def add_file(self, dcc_file):
         """Adds the specified file to the record
@@ -487,12 +640,6 @@ class DccRecord(object):
 class DccFile(object):
     """Represents a file attached to a DCC document"""
 
-    # file data
-    data = None
-
-    # local path
-    local_path = None
-
     def __init__(self, title, filename, url):
         """Instantiates a DCC file object
 
@@ -508,10 +655,30 @@ class DccFile(object):
         self.filename = filename
         self.url = url
 
+        # defaults
+        self.data = None
+        self.local_path = None
+
     def __str__(self):
-        """String representation of the DCC record"""
+        """String representation of this DCC file"""
 
         return "{0} ({1})".format(self.title, self.filename)
+
+    def __repr__(self):
+        """Representation of this DCC file"""
+
+        return self.__str__()
+
+    def _download(self, fetcher):
+        """Downloads the file using the specified fetcher
+
+        :param fetcher: fetcher to use to get data
+        """
+
+        self.logger.info("Downloading and attaching %s", self)
+
+        # download and attach data to file
+        self.set_data(fetcher.fetch_file_data(self))
 
     def set_data(self, data):
         """Sets the data associated with this file
@@ -569,6 +736,10 @@ class DccFile(object):
 
 class InvalidDccNumberException(Exception):
     """Exception for when a DCC number is invalid"""
+    pass
+
+class DifferentDccRecordException(Exception):
+    """Exception for when a different DCC record is retrieved compared to the requested one"""
     pass
 
 class DataNotDownloadedException(Exception):

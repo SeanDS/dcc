@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-"""Communication classes"""
+"""Communication classes
+
+TODO: this should also do caching
+"""
 
 import urllib2
 import abc
@@ -14,75 +17,48 @@ class Fetcher(object):
     # abstract method
     __metaclass__ = abc.ABCMeta
 
-    def fetch_dcc_record(self, *args, **kwargs):
-        """Fetches the DCC record specified by the provided number
+    def fetch_record_page(self, dcc_number):
+        """Fetches the DCC record page specified by the provided number
 
-        Supports arguments for dcc.record.DccNumber.__init__(), or a DccNumber object.
-
-        :param download_files: whether to download the files attached to the record
+        :param dcc_number: DCC number to fetch record for
         """
 
-        # get download_files parameter (a bit hacky due to Python 2's argument handling behaviour)
-        download_files = bool(kwargs.get('download_files', False))
+        # create URL, fetch it and return it
+        return self._get_url_contents(self._build_dcc_record_url(dcc_number))
 
-        # remove download_files from kwargs
-        if kwargs.has_key('download_files'):
-            del kwargs['download_files']
+    def fetch_author_page(self, author):
+        """Fetches the page of the author specified
 
-        # get DCC number from input(s)
-        if isinstance(args[0], dcc.record.DccNumber):
-            # DCC number provided
-            dcc_number = args[0]
-        else:
-            # DCC number to be created from inputs
-            dcc_number = dcc.record.DccNumber(*args, **kwargs)
+        :param author: author to fetch page for
+        """
 
-        # create the DCC URL
-        url = self._build_dcc_url(dcc_number)
+        # create URL, fetch it then return it
+        return self._get_url_contents(self._build_dcc_author_url(author))
 
-        # get the page contents
-        contents = self._get_url_contents(url)
+    def fetch_file_data(self, dcc_file):
+        """Fetches the file data associated with the specified file
 
-        # parse new DCC record
-        dcc_record = dcc.patterns.DccRecordParser(contents).to_record()
+        :param dcc_file: file to fetch data for
+        """
 
-        # make sure its number matches the request
-        if dcc_number.numbers_equal(dcc_record.dcc_number):
-            # check if the version matches, if it was specified
-            if dcc_number.version is not None:
-                if dcc_number.version != dcc_record.dcc_number.version:
-                    # correct document number, but incorrect version
-                    raise DifferentDccRecordException("The retrieved record has the correct \
-number but not the correct version")
-        else:
-            # incorrect document number
-            raise DifferentDccRecordException("The retrieved record number ({0}) is different from the \
-requested one ({1})".format(dcc_record.dcc_number, dcc_number))
-
-        # download the files associated with the record, if requested
-        if download_files:
-            self._download_record_files(dcc_record)
-
-        return dcc_record
+        # fetch and return the data at the file's URL
+        return self._get_url_contents(dcc_file.url)
 
     @abc.abstractmethod
-    def _build_dcc_url(self, dcc_number):
+    def _build_dcc_record_url(self, dcc_number):
         """Builds the URL representing the specified DCC number"""
+
+        pass
+
+    @abc.abstractmethod
+    def _build_dcc_author_url(self, author):
+        """Builds the URL representing the specified author"""
 
         pass
 
     @abc.abstractmethod
     def _get_url_contents(self, url):
         """Fetches the specified contents at the specified URL"""
-
-        pass
-
-    @abc.abstractmethod
-    def _download_record_files(self, dcc_record):
-        """Fetches the files attached to the specified record
-
-        :param dcc_record: DCC record to fetch files for
-        """
 
         pass
 
@@ -95,9 +71,6 @@ class HttpFetcher(Fetcher):
     # protocol
     protocol = "http"
 
-    # dict to hold downloaded records
-    retrieved_dcc_records = {}
-
     def __init__(self, cookies):
         """Instantiates an HTTP fetcher using the specified cookies
 
@@ -107,15 +80,30 @@ class HttpFetcher(Fetcher):
         # create logger
         self.logger = logging.getLogger("http-fetcher")
 
+        # set cookies
         self.cookies = cookies
 
-    def _build_dcc_url(self, dcc_number):
-        """Builds a DCC URL given the specified DCC number"""
+        # create empty dict to hold downloaded records
+        self.retrieved_dcc_records = {}
 
-        # create URL
-        url = self.protocol + "://" + self.get_preferred_server() + "/" + dcc_number.get_url_path()
+    def _build_dcc_record_url(self, dcc_number):
+        """Builds a DCC record URL given the specified DCC number
 
-        return url
+        :param dcc_number: number of DCC record to download
+        """
+
+        # create and return URL
+        return self.protocol + "://" + self.get_preferred_server() + "/" + dcc_number.get_url_path()
+
+    def _build_dcc_author_url(self, author):
+        """Builds a DCC author page URL given the specified author
+
+        :param author: author to download
+        """
+
+        # create and return URL
+        return self.protocol + "://" + self.get_preferred_server() + \
+        "/cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid)
 
     def get_preferred_server(self):
         """Returns the user's preferred server"""
@@ -127,41 +115,10 @@ class HttpFetcher(Fetcher):
         opener = urllib2.build_opener()
         opener.addheaders.append(["Cookie", self.cookies])
 
-        self.logger.info("Fetching document at URL %s", url)
+        self.logger.info("Fetching contents at URL %s", url)
+
+        # open a stream to the URL
         stream = opener.open(url)
 
-        self.logger.info("Reading document content")
+        # return the contents of the retrieved stream
         return stream.read()
-
-    def _download_record_files(self, dcc_record):
-        """Fetches the files attached to the specified record
-
-        :param dcc_record: DCC record to fetch files for
-        """
-
-        # count files
-        total_count = len(dcc_record.files)
-
-        # current file count
-        current_count = 1
-
-        self.logger.info("Fetching files...")
-
-        # loop over files in this record
-        for dcc_file in dcc_record.files:
-            self.logger.info("(%d/%d) Fetching %s", current_count, total_count, dcc_file)
-
-            # get the file contents
-            data = self._get_url_contents(dcc_file.url)
-
-            # attach data to file
-            dcc_file.set_data(data)
-
-            # increment counter
-            current_count += 1
-
-        self.logger.info("Finished fetch")
-
-class DifferentDccRecordException(Exception):
-    """Exception for when a different DCC record is retrieved compared to the requested one"""
-    pass

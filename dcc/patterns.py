@@ -106,8 +106,8 @@ class DccPatterns(object):
         # first match is the category
         category_letter = str(group[0])
 
-        # second match is the number
-        dcc_numeric = int(group[1])
+        # second match is the number (don't cast to int to preserve leading/trailing zeros)
+        dcc_numeric = str(group[1])
 
         # check if a version was matched
         if len(group) > 3:
@@ -505,6 +505,48 @@ class DccAuthorPageParser(DccPageParser):
 
         # create and return a BeautifulSoup object
         return bs(self.content, "html.parser")
+
+    def extract_dcc_numbers(self):
+        """Extracts the author's records from the page"""
+
+        # get a navigator object for the record
+        navigator = self._get_content_navigator()
+
+        # empty list of numbers
+        dcc_numbers = []
+
+        # get the record table
+        record_table = navigator.find("table", class_="Alternating DocumentList sortable")
+
+        # if there is no related div, return
+        if record_table is None:
+            return dcc_numbers
+
+        # extract doc ID table cells
+        doc_ids = record_table.find_all("td", class_="Docid")
+
+        # if there are no doc IDs, return
+        if doc_ids is None:
+            return dcc_numbers
+
+        # loop over doc IDs
+        for doc_id in doc_ids:
+            # extract the anchor element
+            number_anchor = doc_id.find("a")
+
+            # if there is no anchor, skip
+            if number_anchor is None:
+                continue
+
+            # find the DCC number in the anchor
+            dcc_number = self.dcc_patterns.get_dcc_number_from_string( \
+            number_anchor.text)
+
+            # add to list
+            dcc_numbers.append(dcc_number)
+
+        # return list of DCC numbers
+        return dcc_numbers
 
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
