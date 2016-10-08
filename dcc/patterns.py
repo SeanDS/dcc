@@ -2,6 +2,7 @@
 
 """Pattern matching classes"""
 
+import abc
 import logging
 import re
 from datetime import datetime
@@ -138,72 +139,11 @@ class DccPatterns(object):
 
         return version
 
-class DccRecordParser(object):
-    """Represents a parser for DCC HTML documents"""
+class DccPageParser(object):
+    """Represents a parser for DCC pages"""
 
-    def __init__(self, content):
-        """Instantiates a record parser with the provided page content
-
-        :param content: DCC record page HTML
-        """
-
-        # create logger
-        self.logger = logging.getLogger("patterns")
-
-        # create patterns object
-        self.dcc_patterns = DccPatterns()
-
-        # set page content
-        self.content = content
-
-    def to_record(self):
-        """Returns a DccRecord representing the content"""
-
-        # check that we have a valid record
-        self.validate()
-
-        # get DCC number
-        dcc_number = self._extract_dcc_number()
-
-        # create the new DCC record
-        dcc_record = dcc.record.DccRecord(dcc_number)
-
-        # set its title
-        dcc_record.title = self._extract_title()
-
-        # set authors
-        dcc_record.authors = self._extract_authors()
-
-        # get other version numbers
-        other_version_numbers = self._extract_other_version_numbers()
-
-        # set the other versions
-        map(dcc_record.add_version_number, other_version_numbers)
-        self.logger.info("Found %d other version number(s)", len(other_version_numbers))
-
-        # get the revision dates
-        (creation_date, contents_rev_date, metadata_rev_date) = self._extract_revision_dates()
-
-        # set them individually
-        dcc_record.creation_date = creation_date
-        dcc_record.contents_revision_date = contents_rev_date
-        dcc_record.metadata_revision_date = metadata_rev_date
-
-        # get attached files
-        files = self._extract_attached_files()
-
-        # set the files
-        map(dcc_record.add_file, files)
-        self.logger.info("Found %d attached file(s)", len(files))
-
-        # get and set the referencing records
-        dcc_record.referenced_by = self._extract_referencing_records()
-
-        # get and set the related records
-        dcc_record.related = self._extract_related_records()
-
-        # return the new record
-        return dcc_record
+    # abstract method
+    __metaclass__ = abc.ABCMeta
 
     def validate(self):
         """Validates the page content to make sure it is a proper record"""
@@ -229,13 +169,31 @@ class DccRecordParser(object):
                 # unknown error
                 raise UnknownDccErrorException()
 
+class DccRecordParser(DccPageParser):
+    """Represents a parser for DCC HTML documents"""
+
+    def __init__(self, content):
+        """Instantiates a record parser with the provided page content
+
+        :param content: DCC record page HTML
+        """
+
+        # create logger
+        self.logger = logging.getLogger("record-parser")
+
+        # create patterns object
+        self.dcc_patterns = DccPatterns()
+
+        # set page content
+        self.content = content
+
     def _get_content_navigator(self):
         """Gets a navigator object for the page content"""
 
         # create and return a BeautifulSoup object
         return bs(self.content, "html.parser")
 
-    def _extract_dcc_number(self):
+    def extract_dcc_number(self):
         """Extracts the DCC number"""
 
         # get a navigator object for the record
@@ -251,7 +209,7 @@ class DccRecordParser(object):
         # get and return DCC number
         return self.dcc_patterns.get_dcc_number_from_string(doc_num_h.string)
 
-    def _extract_title(self):
+    def extract_title(self):
         """Extracts the title from the page content"""
 
         # get a navigator object for the record
@@ -269,7 +227,7 @@ class DccRecordParser(object):
 
         return title
 
-    def _extract_other_version_numbers(self):
+    def extract_other_version_numbers(self):
         """Extract a list of other version numbers from the page content"""
 
         # get a navigator object for the record
@@ -286,7 +244,7 @@ class DccRecordParser(object):
         return [self.dcc_patterns.get_version_from_string(str(tag["title"])) \
             for tag in versions_div.find_all("a")]
 
-    def _extract_attached_files(self):
+    def extract_attached_files(self):
         """Extract a list of attached files from the page content"""
 
         # get a navigator object for the record
@@ -306,7 +264,7 @@ class DccRecordParser(object):
         # return list of DccFile objects
         return files
 
-    def _extract_revision_dates(self):
+    def extract_revision_dates(self):
         """Extracts the revision dates from the content, converted to a Python dates"""
 
         # get the creation, contents and metadata revision date texts
@@ -322,7 +280,7 @@ class DccRecordParser(object):
         # return tuple
         return (creation_date, contents_rev_date, metadata_rev_date)
 
-    def _extract_referencing_records(self):
+    def extract_referencing_records(self):
         """Extracts the referencing records from the page"""
 
         # get a navigator object for the record
@@ -359,7 +317,7 @@ class DccRecordParser(object):
         # return list of references
         return references
 
-    def _extract_related_records(self):
+    def extract_related_records(self):
         """Extracts the related records from the page"""
 
         # get a navigator object for the record
@@ -396,7 +354,7 @@ class DccRecordParser(object):
         # return list of related documents
         return related
 
-    def _extract_authors(self):
+    def extract_authors(self):
         """Extracts the authors from the page"""
 
         # get a navigator object for the record
@@ -428,11 +386,12 @@ class DccRecordParser(object):
             # get name, with strip() to get rid of whitespace
             author_name = author_link.text.strip()
 
-            # create author object
-            author = dcc.record.DccAuthor(author_name)
+            # get id
+            author_id = self.dcc_patterns.get_author_id_from_url( \
+            author_link['href'])
 
-            # set ID
-            author.id = self.dcc_patterns.get_author_id_from_url(author_link['href'])
+            # create author object
+            author = dcc.record.DccAuthor(author_name, author_id)
 
             # add to list
             authors.append(author)
@@ -522,6 +481,30 @@ class DccRecordParser(object):
 
         # no element found
         return None
+
+class DccAuthorPageParser(DccPageParser):
+    """Represents a parser for DCC author pages"""
+
+    def __init__(self, content):
+        """Instantiates an author page parser with the provided page content
+
+        :param content: DCC author page HTML
+        """
+
+        # create logger
+        self.logger = logging.getLogger("author-parser")
+
+        # create patterns object
+        self.dcc_patterns = DccPatterns()
+
+        # set page content
+        self.content = content
+
+    def _get_content_navigator(self):
+        """Gets a navigator object for the page content"""
+
+        # create and return a BeautifulSoup object
+        return bs(self.content, "html.parser")
 
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
