@@ -5,6 +5,8 @@
 TODO: this should also do caching
 """
 
+from __future__ import unicode_literals
+
 import sys
 import urllib2
 import abc
@@ -115,7 +117,7 @@ class HttpFetcher(Fetcher):
 
         # create and return URL
         return self.protocol + "://" + self.get_preferred_server() + \
-        "/cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid)
+        "/cgi-bin/private/DocDB/ListBy?authorid=" + unicode(author.uid)
 
     def get_preferred_server(self):
         """Returns the user's preferred server"""
@@ -181,4 +183,4 @@ class HttpFetcher(Fetcher):
                 self.progress_hook(bytes_so_far, self.chunk_size, total_size)
 
         # join up the bytes into a string and return
-        return "".join(data)
+        return b"".join(data)

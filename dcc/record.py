@@ -2,6 +2,8 @@
 
 """Record classes"""
 
+from __future__ import unicode_literals
+
 import sys
 import os
 import logging
@@ -30,8 +32,8 @@ class DccArchive(object):
             self.fetcher = fetcher
         else:
             # validate fetcher and cookies as strings
-            fetcher = str(fetcher)
-            cookies = str(cookies)
+            fetcher = unicode(fetcher)
+            cookies = unicode(cookies)
 
             if fetcher == 'http':
                 # create an HTTP fetcher
@@ -54,7 +56,7 @@ class DccArchive(object):
     def __repr__(self):
         """Print representation of the archive"""
 
-        return str(self)
+        return unicode(self)
 
     def fetch_record(self, *args, **kwargs):
         """Fetches a DCC record and adds it to the archive
@@ -133,7 +135,7 @@ class DccArchive(object):
 
         # if the number is not a DccNumber, parse it as one
         if not isinstance(dcc_number, dcc.record.DccNumber):
-            dcc_number = dcc.record.DccNumber(str(dcc_number))
+            dcc_number = dcc.record.DccNumber(unicode(dcc_number))
 
         # make sure a version is present
         if not dcc_number.has_version():
@@ -152,7 +154,7 @@ class DccArchive(object):
 
         # if the number is not a DccNumber, parse it as one
         if not isinstance(dcc_number, dcc.record.DccNumber):
-            dcc_number = dcc.record.DccNumber(str(dcc_number))
+            dcc_number = dcc.record.DccNumber(unicode(dcc_number))
 
         # if a version is present, tell the user it is being ignored
         if dcc_number.has_version():
@@ -176,7 +178,7 @@ class DccArchive(object):
     def list_records(self):
         """Lists the records contained within the archive"""
 
-        return [str(record) for record in self.records.values()]
+        return [unicode(record) for record in self.records.values()]
 
     def download_record_file_data(self, record):
         """Downloads the file data attached to the specified record
@@ -242,7 +244,7 @@ class DccAuthor(object):
         """
 
         # set name
-        self.name = str(name)
+        self.name = unicode(name)
 
         # set id
         self.uid = int(uid)
@@ -337,19 +339,19 @@ class DccNumber(object):
                         string")
 
                 # numeric part is between second character and index
-                numeric = str(first_id[1:hyphen_index])
+                numeric = unicode(first_id[1:hyphen_index])
 
                 # version is last part, two places beyond start of hyphen
                 version = int(first_id[hyphen_index+2:])
             else:
                 # numeric is everything after first character
-                numeric = str(first_id[1:])
+                numeric = unicode(first_id[1:])
 
             # category should be first
-            category = str(first_id[0])
+            category = unicode(first_id[0])
         else:
             # category is the first argument
-            category = str(first_id)
+            category = unicode(first_id)
 
         # check category is valid
         if not DccNumber.is_category_letter(category):
@@ -606,7 +608,7 @@ requested one ({1})".format(this_dcc_number, dcc_number))
     def filenames(self):
         """Returns a list of filenames associated with this record"""
 
-        return [str(dcc_file) for dcc_file in self.files]
+        return [unicode(dcc_file) for dcc_file in self.files]
 
     def add_file(self, dcc_file):
         """Adds the specified file to the record
@@ -634,12 +636,12 @@ requested one ({1})".format(this_dcc_number, dcc_number))
     def get_refenced_by_titles(self):
         """Returns a list of titles of documents referencing this one"""
 
-        return [str(record) for record in self.referenced_by]
+        return [unicode(record) for record in self.referenced_by]
 
     def get_related_titles(self):
         """Returns a list of titles of documents related to this one"""
 
-        return [str(record) for record in self.related]
+        return [unicode(record) for record in self.related]
 
 class DccFile(object):
     """Represents a file attached to a DCC document"""

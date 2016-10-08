@@ -2,6 +2,8 @@
 
 """Pattern matching classes"""
 
+from __future__ import unicode_literals
+
 import abc
 import logging
 import re
@@ -104,10 +106,10 @@ class DccPatterns(object):
         group = regex_search.groups()
 
         # first match is the category
-        category_letter = str(group[0])
+        category_letter = unicode(group[0])
 
         # second match is the number (don't cast to int to preserve leading/trailing zeros)
-        dcc_numeric = str(group[1])
+        dcc_numeric = unicode(group[1])
 
         # check if a version was matched
         if len(group) > 3:
@@ -223,7 +225,7 @@ class DccRecordParser(DccPageParser):
             raise DccRecordTitleNotFoundException()
 
         # the document title is the entire string contained within h1 within this div
-        title = str(doc_title_div.find("h1").string)
+        title = unicode(doc_title_div.find("h1").string)
 
         return title
 
@@ -241,7 +243,7 @@ class DccRecordParser(DccPageParser):
             raise DccRecordTitleNotFoundException()
 
         # find all DCC strings in the list of anchor elements
-        return [self.dcc_patterns.get_version_from_string(str(tag["title"])) \
+        return [self.dcc_patterns.get_version_from_string(unicode(tag["title"])) \
             for tag in versions_div.find_all("a")]
 
     def extract_attached_files(self):
@@ -258,8 +260,8 @@ class DccRecordParser(DccPageParser):
 
         # loop over found classes, searching for URLs and creating DccFile objects in the list
         for files_class in files_classes:
-            files.extend([dcc.record.DccFile(str(url_tag.string), str(url_tag["title"]), \
-                str(url_tag["href"])) for url_tag in files_class.find_all("a")])
+            files.extend([dcc.record.DccFile(unicode(url_tag.string), unicode(url_tag["title"]), \
+                unicode(url_tag["href"])) for url_tag in files_class.find_all("a")])
 
         # return list of DccFile objects
         return files
@@ -306,10 +308,10 @@ class DccRecordParser(DccPageParser):
         # loop over references
         for reference_link in reference_links:
             # create new DCC record for the reference
-            record = dcc.record.DccRecord(dcc.record.DccNumber(str(reference_link['title'])))
+            record = dcc.record.DccRecord(dcc.record.DccNumber(unicode(reference_link['title'])))
 
             # set its title
-            record.title = str(reference_link.text)
+            record.title = unicode(reference_link.text)
 
             # add to list
             references.append(record)
@@ -343,10 +345,10 @@ class DccRecordParser(DccPageParser):
         # loop over related links
         for related_link in related_links:
             # create new DCC record for the related document
-            record = dcc.record.DccRecord(dcc.record.DccNumber(str(related_link['title'])))
+            record = dcc.record.DccRecord(dcc.record.DccNumber(unicode(related_link['title'])))
 
             # set its title
-            record.title = str(related_link.text)
+            record.title = unicode(related_link.text)
 
             # add to list
             related.append(record)
@@ -446,7 +448,7 @@ class DccRecordParser(DccPageParser):
             raise DccRecordRevisionsNotFoundException()
 
         # parse the date text
-        return str(date_dd.text)
+        return unicode(date_dd.text)
 
     @staticmethod
     def _find_child_by_text(base_element, text, tag=None, class_=None):
@@ -459,7 +461,7 @@ class DccRecordParser(DccPageParser):
         """
 
         # validate text
-        text = str(text)
+        text = unicode(text)
 
         # arguments for find
         args = []
