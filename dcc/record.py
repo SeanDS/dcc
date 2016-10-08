@@ -621,7 +621,8 @@ requested one ({1})".format(this_dcc_number, dcc_number))
         # add to file list
         self.files.append(dcc_file)
 
-    def get_lastest_version_number(self):
+    @property
+    def latest_version(self):
         """Returns the latest version number for this record"""
 
         # find highest other version

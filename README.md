@@ -79,7 +79,7 @@ print record.dcc_number
 print record.title
 
 # latest version number of this record
-print record.get_lastest_version_number()
+print record.latest_version
 
 # list of version numbers associated with this record
 print record.versions
