@@ -240,7 +240,8 @@ class DccRecordParser(DccPageParser):
 
         # check it was found
         if versions_div is None:
-            raise DccRecordTitleNotFoundException()
+            # no other versions
+            return []
 
         # find all DCC strings in the list of anchor elements
         return [self.dcc_patterns.get_version_from_string(unicode(tag["title"])) \
