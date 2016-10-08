@@ -700,7 +700,7 @@ class DccFile(object):
         if not self.has_local_path():
             self.create_temp_path()
 
-        self.logger.info("Opening file...")
+        self.logger.info("Opening %s...", self.local_path)
 
         # check if Linux
         if sys.platform.startswith('linux'):
@@ -720,8 +720,19 @@ class DccFile(object):
 
         self.logger.info("Setting temporary path for %s", self)
 
+        # get the file's suffix, if there is one
+        dot_idx = self.filename.find('.')
+
+        # check if the dot was found
+        if dot_idx >= 0:
+            # add the extension
+            suffix = self.filename[dot_idx:]
+        else:
+            suffix = ""
+
         # get a temporary file, with a guaranteed name and not deleted immediately
-        tmp_file = tempfile.NamedTemporaryFile(delete=False)
+        # suffix is required to allow intelligent opening of files in external apps
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
 
         self.logger.info("Writing data to temporary file")
 
