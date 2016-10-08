@@ -5,6 +5,7 @@
 TODO: this should also do caching
 """
 
+import sys
 import urllib2
 import abc
 import logging
@@ -16,6 +17,14 @@ class Fetcher(object):
 
     # abstract method
     __metaclass__ = abc.ABCMeta
+
+    def __init__(self, progress_hook=None):
+        """Instantiates a fetcher
+
+        :param progress_hook: callable to send download progress
+        """
+
+        self.progress_hook = progress_hook
 
     def fetch_record_page(self, dcc_number):
         """Fetches the DCC record page specified by the provided number
@@ -71,6 +80,9 @@ class HttpFetcher(Fetcher):
     # protocol
     protocol = "http"
 
+    # download chunk size
+    chunk_size = 8192
+
     def __init__(self, cookies):
         """Instantiates an HTTP fetcher using the specified cookies
 
@@ -112,7 +124,15 @@ class HttpFetcher(Fetcher):
         return self.servers[0]
 
     def _get_url_contents(self, url):
+        """Gets the contents at the specified URL
+
+        :param url: URL to retrieve
+        """
+
+        # create a URL reader
         opener = urllib2.build_opener()
+
+        # set the cookies
         opener.addheaders.append(["Cookie", self.cookies])
 
         self.logger.info("Fetching contents at URL %s", url)
@@ -120,5 +140,45 @@ class HttpFetcher(Fetcher):
         # open a stream to the URL
         stream = opener.open(url)
 
-        # return the contents of the retrieved stream
-        return stream.read()
+        # get content size
+        content_length_header = stream.info().getheader('Content-Length')
+
+        # if the content length header is not specified, just return the full data
+        if content_length_header is None:
+            self.logger.debug("No download progress information available")
+
+            # return content
+            return stream.read()
+        elif self.progress_hook is None:
+            # user doesn't want progress, so just return the content
+            return stream.read()
+
+        # calculate content length in bytes
+        total_size = int(content_length_header.strip())
+
+        # initial download progress
+        bytes_so_far = 0
+
+        # list of bytes
+        data = []
+
+        # loop until the data is fully retrieved
+        while True:
+            # read the next chunk
+            chunk = stream.read(self.chunk_size)
+
+            # add the number of bytes retrieved to the sum
+            bytes_so_far += len(chunk)
+
+            # an empty chunk means we've got the data
+            if not chunk:
+                break
+
+            # add data to list
+            data += chunk
+
+            if self.progress_hook:
+                self.progress_hook(bytes_so_far, self.chunk_size, total_size)
+
+        # join up the bytes into a string and return
+        return "".join(data)

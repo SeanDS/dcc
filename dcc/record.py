@@ -13,11 +13,12 @@ import dcc.patterns
 class DccArchive(object):
     """Represents a collection of DCC documents"""
 
-    def __init__(self, fetcher='http', cookies=''):
+    def __init__(self, fetcher='http', cookies='', progress_hook=None):
         """Instantiates a DCC archive
 
         :param fetcher: type of fetcher to use, or fetcher object
         :param cookies: cookies to pass to fetcher, if necessary
+        :param progress_hook: callable to send download progress to
         """
 
         # create logger
@@ -38,6 +39,9 @@ class DccArchive(object):
             else:
                 # fetcher not recognised
                 raise FetcherNotRecognisedException()
+
+        # set the progress hook
+        self.fetcher.progress_hook = progress_hook
 
         # create empty archive dict
         self.records = {}
