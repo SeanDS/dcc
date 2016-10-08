@@ -581,10 +581,10 @@ requested one ({1})".format(this_dcc_number, dcc_number))
         logger.info("Found %d attached file(s)", len(files))
 
         # get and set the referencing records
-        record.referenced_by = parser.extract_referencing_records()
+        record.referenced_by = parser.extract_referencing_numbers()
 
         # get and set the related records
-        record.related = parser.extract_related_records()
+        record.related = parser.extract_related_numbers()
 
         # return the new record
         return record

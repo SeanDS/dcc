@@ -283,8 +283,8 @@ class DccRecordParser(DccPageParser):
         # return tuple
         return (creation_date, contents_rev_date, metadata_rev_date)
 
-    def extract_referencing_records(self):
-        """Extracts the referencing records from the page"""
+    def extract_referencing_numbers(self):
+        """Extracts the referencing DCC numbers from the page"""
 
         # get a navigator object for the record
         navigator = self._get_content_navigator()
@@ -308,25 +308,22 @@ class DccRecordParser(DccPageParser):
 
         # loop over references
         for reference_link in reference_links:
-            # create new DCC record for the reference
-            record = dcc.record.DccRecord(dcc.record.DccNumber(unicode(reference_link['title'])))
-
-            # set its title
-            record.title = unicode(reference_link.text)
+            # create new DCC number for the reference
+            number = dcc.record.DccNumber(unicode(reference_link['title']))
 
             # add to list
-            references.append(record)
+            references.append(number)
 
         # return list of references
         return references
 
-    def extract_related_records(self):
-        """Extracts the related records from the page"""
+    def extract_related_numbers(self):
+        """Extracts the related DCC numbers from the page"""
 
         # get a navigator object for the record
         navigator = self._get_content_navigator()
 
-        # empty list of related documents
+        # empty list of related DCC numbers
         related = []
 
         # get the related div
@@ -346,13 +343,10 @@ class DccRecordParser(DccPageParser):
         # loop over related links
         for related_link in related_links:
             # create new DCC record for the related document
-            record = dcc.record.DccRecord(dcc.record.DccNumber(unicode(related_link['title'])))
-
-            # set its title
-            record.title = unicode(related_link.text)
+            number = dcc.record.DccNumber(unicode(related_link['title']))
 
             # add to list
-            related.append(record)
+            related.append(number)
 
         # return list of related documents
         return related
