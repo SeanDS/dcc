@@ -596,7 +596,7 @@ requested one ({1})".format(this_dcc_number, dcc_number))
         return [author.name for author in self.authors]
 
     @property
-    def versions(self):
+    def version_nums(self):
         """Returns a list of versions associated with this record"""
 
         versions_list = self.other_version_numbers
@@ -622,7 +622,7 @@ requested one ({1})".format(this_dcc_number, dcc_number))
         self.files.append(dcc_file)
 
     @property
-    def latest_version(self):
+    def latest_version_num(self):
         """Returns the latest version number for this record"""
 
         # find highest other version

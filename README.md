@@ -79,10 +79,10 @@ print record.dcc_number
 print record.title
 
 # latest version number of this record
-print record.latest_version
+print record.latest_version_num
 
 # list of version numbers associated with this record
-print record.versions
+print record.version_nums
 
 # useful dates (as Python date objects)
 print record.creation_date
