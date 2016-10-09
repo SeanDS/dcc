@@ -110,12 +110,12 @@ print record.files
 You can extract the files by calling the appropriate index:
 ```python
 # get first file (usually the main attachment)
-file = record.files[0]
+f = record.files[0]
 ```
 
 Open the file by calling `open_file`:
 ```python
-file.open_file()
+f.open_file()
 ```
 This should launch an appropriate program to open the file. Note that the file is stored in a temporary location by default, so if you wish to make a local copy you should save it somewhere else from within the program that is launched.
 
