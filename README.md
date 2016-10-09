@@ -10,16 +10,24 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/) [Document C
 
 ## Prerequisites
 
+  - LIGO.org credentials (`albert.einstein`)
   - Python 2.7+
   - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
   - [pytz](https://pypi.python.org/pypi/pytz)
-  - LIGO.org credentials (`albert.einstein`)
+  - (Optional) [graphviz](https://pypi.python.org/pypi/graphviz) for Python
 
-`BeautifulSoup4` and `pytz` can be obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
+LIGO.org credentials are given to members of the interferometric gravitational wave community and are not publicly available. The API may work with the public DCC without these credentials, but it has not been tested.
+
+The `graphviz` package is for creating graphs of connected DCC documents, and is optional if you don't need to do this. All of the packages above can be obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
 ```bash
-sudo pip install bs4 pytz
+sudo pip install bs4 pytz graphviz
 ```
 from a terminal.
+
+The `graphviz` above is just an interface package for Python. You also need to make sure you have the full `graphviz` program installed too. On Ubuntu:
+```bash
+sudo apt-get install graphviz
+```
 
 ## Quick start
 Before doing anything else, add the `dcc` package to your Python path.
@@ -110,6 +118,9 @@ Open the file by calling `open_file`:
 file.open_file()
 ```
 This should launch an appropriate program to open the file. Note that the file is stored in a temporary location by default, so if you wish to make a local copy you should save it somewhere else from within the program that is launched.
+
+### Graphs
+You can use `graphviz` to generate graphs representing the connections between DCC documents, authors and more. There is an example provided in `examples/graph.py`.
 
 ### Logging
 `DCC API` has logging capabilities. To log to `stdout`, just put this at the top of your script:
