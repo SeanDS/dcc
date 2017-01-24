@@ -676,7 +676,7 @@ class DccFile(object):
     def __str__(self):
         """String representation of this DCC file"""
 
-        return "{0} ({1})".format(self.title, self.filename)
+        return "'{0}' ({1})".format(self.title, self.filename)
 
     def __repr__(self):
         """Representation of this DCC file"""
