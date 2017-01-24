@@ -80,7 +80,7 @@ class HttpFetcher(Fetcher):
     servers = ["dcc.ligo.org", "dcc-backup.ligo.org", "dcc-lho.ligo.org", "dcc-llo.ligo.org"]
 
     # protocol
-    protocol = "http"
+    protocol = "https"
 
     # download chunk size
     chunk_size = 8192
