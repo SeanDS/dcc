@@ -236,7 +236,7 @@ class DccArchive(object):
 class DccAuthor(object):
     """Represents a DCC author"""
 
-    def __init__(self, name, uid):
+    def __init__(self, name, uid=None):
         """Instantiates a DCC author
 
         :param name: name of the author
@@ -247,7 +247,10 @@ class DccAuthor(object):
         self.name = unicode(name)
 
         # set id
-        self.uid = int(uid)
+        try:
+            self.uid = int(uid)
+        except:
+            self.uid = None
 
     def __str__(self):
         """String representation of this author"""
