@@ -8,6 +8,7 @@ import abc
 import logging
 import re
 from datetime import datetime
+import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup as bs
 import pytz
 import dcc.record
@@ -478,6 +479,72 @@ class DccRecordParser(DccPageParser):
 
         # no element found
         return None
+
+class DccRecordXMLParser(object):
+    """Represents a parser for DCC XML documents"""
+
+    def __init__(self, content):
+        """Instantiates a record parser with the provided page content
+
+        :param content: DCC record page XML
+
+        """
+        self.logger = logging.getLogger("record-parser")
+        self.content = content
+
+    def validate(self):
+        try:
+            self.root = ET.fromstring(self.content)
+        except ET.ParseError:
+            raise DccNumberNotFoundException()
+        assert self.root.attrib['project'] == 'LIGO'
+        self.doc = self.root[0]
+        self.docrev = self.doc[0]
+
+    def extract_dcc_number(self):
+        t = self.docrev.find('dccnumber').text[0]
+        n = self.docrev.find('dccnumber').text[1:]
+        v = self.docrev.attrib['version']
+        return dcc.record.DccNumber(t,n,v)
+
+    def extract_title(self):
+        return self.docrev.find('title').text
+
+    def extract_authors(self):
+        authors = []
+        for a in self.docrev.findall('author'):
+            name = a.find('fullname').text
+            try:
+                enum = a.find('employeenumber').text
+            except AttributeError:
+                enum = None
+            authors.append(dcc.record.DccAuthor(name, enum))
+        return authors
+
+    def extract_other_version_numbers(self):
+        return [r.attrib['version'] for r in self.docrev.find('otherversions')]
+
+    def extract_revision_dates(self):
+        return (None, self.docrev.attrib['modified'], None)
+
+    def extract_attached_files(self):
+        files = []
+        for f in self.docrev.findall('file'):
+            name = f.find('name').text
+            try:
+                title = f.find('description').text
+            except AttributeError:
+                title = name
+            url = f.attrib['href']
+            files.append(dcc.record.DccFile(title, name, url))
+        return files
+
+    def extract_related_numbers(self):
+        # FIXME: DCC NEEDS TO ADD THIS TO XML
+        return []
+
+    def extract_referencing_numbers(self):
+        return [f.attrib['docid'] for f in self.docrev.findall('xrefby')]
 
 class DccAuthorPageParser(DccPageParser):
     """Represents a parser for DCC author pages"""
