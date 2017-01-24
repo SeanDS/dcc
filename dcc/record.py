@@ -534,6 +534,10 @@ class DccRecord(object):
 
         # parse new DCC record
         parser = dcc.patterns.DccRecordParser(contents)
+        if fetcher.use_xml:
+            parser = dcc.patterns.DccRecordXMLParser(contents)
+        else:
+            parser = dcc.patterns.DccRecordParser(contents)
 
         # check that we have a valid record
         parser.validate()

@@ -94,7 +94,7 @@ class HttpFetcher(Fetcher):
     # download chunk size
     chunk_size = 8192
 
-    def __init__(self, cookies):
+    def __init__(self, cookies, use_xml=False):
         """Instantiates an HTTP fetcher using the specified cookies
 
         :param cookies: cookies set by DCC during login, to allow the active session to be used
@@ -105,6 +105,9 @@ class HttpFetcher(Fetcher):
 
         # set cookies
         self.cookies = cookies
+
+        # use XML interface flag
+        self.use_xml = use_xml
 
         # create empty dict to hold downloaded records
         self.retrieved_dcc_records = {}
@@ -128,8 +131,13 @@ class HttpFetcher(Fetcher):
         """
 
         # create and return URL
+        if self.use_xml:
+            query = 'of=xml'
+        else:
+            query = ''
         return '{base}/{query}'.format(
             base=self._build_dcc_base_url(dcc_number),
+            query=query,
             )
 
     def _build_dcc_author_url(self, author):
