@@ -22,10 +22,13 @@ logging.basicConfig(format='%(message)s',
 
 ##################################################
 
+def _get_cookie_path():
+    return '/tmp/ecpcookie.u{}'.format(os.getuid())
+
 def _load_dcc_archive():
     # this is where the above writes the cookie.  not a very friendly
     # interface
-    cookie_path = '/tmp/ecpcookie.u{}'.format(os.getuid())
+    cookie_path = _get_cookie_path()
     if not os.path.exists(cookie_path):
         # load ECP cookies
         cmd = ['ecp-cookie-init', '-k', '-q', '-n', 'https://dcc.ligo.org/dcc/']
@@ -221,6 +224,31 @@ class Open(Cmd):
         cmd = ['xdg-open', url]
         subprocess.Popen(cmd)
 
+class Reset(Cmd):
+    """Reset authentication.
+
+    Deletes the cookie associated with the user's session.
+    """
+
+    cmd = 'reset'
+
+    def __init__(self):
+        Cmd.__init__(self)
+
+    def __call__(self, args):
+        # parse arguments (needed to allow -h flag)
+        args = self.parser.parse_args(args)
+
+        cookie_path = _get_cookie_path()
+
+        if not os.path.exists(cookie_path):
+            sys.exit("No existing session detected")
+
+        # delete cookie
+        os.remove(cookie_path)
+
+        print("Authentication data reset")
+
 class Help(Cmd):
     """Print manpage or command help (also '-h' after command).
 
@@ -242,6 +270,7 @@ CMDS = collections.OrderedDict([
     ('view', View),
     ('fetch', Fetch),
     ('open', Open),
+    ('reset', Reset),
     ('help', Help),
     ])
 
