@@ -45,8 +45,9 @@ class DccArchive(object):
         # set the progress hook
         self.fetcher.progress_hook = progress_hook
 
-        # create empty archive dict
+        # create empty archive dicts
         self.records = {}
+        self.docids = {}
 
     def __str__(self):
         """String representation of the archive"""
@@ -58,9 +59,11 @@ class DccArchive(object):
 
         return unicode(self)
 
-    def fetch_record(self, *args, **kwargs):
+    def fetch_record(self, key, force=False, *args, **kwargs):
         """Fetches a DCC record and adds it to the archive
 
+        :param force: whether to force a new download even if the record is \
+        in the cache
         :param download_files: whether to download the files attached to the record
         :param overwrite: whether to overwrite an existing identical record
         """
@@ -80,14 +83,20 @@ class DccArchive(object):
             del kwargs['overwrite']
 
         # get DCC number from input(s)
-        if isinstance(args[0], DccNumber):
+        if isinstance(key, DccNumber):
             # DCC number provided
-            dcc_number = args[0]
+            dcc_number = key
         else:
             # DCC number to be created from inputs
-            dcc_number = DccNumber(*args, **kwargs)
+            dcc_number = DccNumber(key, *args, **kwargs)
 
-        # create record
+        # retrieved cached version of record if it exists, and if the
+        # identifier was specified with a version
+        if not force and dcc_number.has_version() and self.has_record(dcc_number):
+            # return cached version
+            return self.records[self.get_dcc_number_str(dcc_number)]
+
+        # fetch remote record
         record = DccRecord._fetch(self.fetcher, dcc_number)
 
         # download the files associated with the record, if requested
@@ -107,8 +116,9 @@ class DccArchive(object):
         :param overwrite: whether to overwrite an existing record
         """
 
-        # get the DCC number string
-        dcc_number_str = dcc.record.DccArchive.get_dcc_number_str(record.dcc_number)
+        # get the representative strings
+        dcc_number_str = DccArchive.get_dcc_number_str(record.dcc_number, \
+        version=True)
 
         # check if record already exists
         if dcc_number_str in self.records.keys():
@@ -124,52 +134,55 @@ class DccArchive(object):
 
         self.logger.info("Entry %s written to archive", dcc_number_str)
 
-    def has_record(self, dcc_number):
-        """Works out if the specified DCC number exists in the archive
+    def has_record(self, identifier):
+        """Works out if the specified DCC number or document id exists in the \
+        archive
 
-        The DCC number specified can either be a string or a DccNumber object, but it must contain
-        a version number. For non-versioned searches, use has_document.
+        The identifier specified can either be a string or a DccNumber object,
+        but it must contain a version number. For non-versioned searches, use
+        has_document.
 
-        :param dcc_number: DCC number to check, either a string or a DccNumber
+        :param identifier: identifier to check, either a string or a DccNumber
         """
 
         # if the number is not a DccNumber, parse it as one
-        if not isinstance(dcc_number, dcc.record.DccNumber):
-            dcc_number = dcc.record.DccNumber(unicode(dcc_number))
+        if not isinstance(identifier, dcc.record.DccNumber):
+            dcc_number = DccNumber(unicode(identifier))
 
         # make sure a version is present
         if not dcc_number.has_version():
-            raise NoDccRecordVersionSpecifiedException()
+            raise NoVersionSpecifiedException()
 
-        # check if the DCC number string is in the record dict keys
-        return dcc.record.DccArchive.get_dcc_number_str(dcc_number) in self.records.keys()
+        return DccArchive.get_dcc_number_str(dcc_number, version=True) \
+        in self.records.keys()
 
-    def has_document(self, dcc_number):
-        """Checks if the archive contains any version of the specified DCC number
+    def has_document(self, identifier):
+        """Checks if the archive contains any version of the specified \
+        identifier
 
         This is much less efficient than has_record.
 
-        :param dcc_number: DCC number to check
+        :param identifier: identifier to check, either a string or a DccNumber
         """
 
         # if the number is not a DccNumber, parse it as one
-        if not isinstance(dcc_number, dcc.record.DccNumber):
-            dcc_number = dcc.record.DccNumber(unicode(dcc_number))
+        if not isinstance(identifier, dcc.record.DccNumber):
+            dcc_number = DccNumber(unicode(identifier))
 
         # if a version is present, tell the user it is being ignored
         if dcc_number.has_version():
             self.logger.info("Ignoring version number in search for %s", dcc_number)
 
-        # get the DCC number string without version suffix
-        dcc_number_str = dcc_number.string_repr(version=False)
+        # get the DCC number without version suffix
+        search_key = dcc_number.string_repr(version=False)
 
         # search for records beginning with the no-version number
-        for this_dcc_str, record in self.records.items():
+        for this_dcc_number_str, record in search_dict.items():
             # parse a DCC number from the key
-            this_dcc_number = dcc.record.DccNumber(this_dcc_str)
+            this_number = DccNumber(this_dcc_number_str)
 
             # check if the strings match
-            if this_dcc_number.string_repr(version=False) == dcc_number_str:
+            if this_number.string_repr(version=False) == search_key:
                 # found a match
                 return True
 
@@ -395,15 +408,6 @@ class DccNumber(object):
         # just check if the number is a positive integer
         return int(numeric) > 0
 
-    @staticmethod
-    def is_dcc_version(version):
-        """Checks if the specified version number is valid
-
-        :param version: version to check
-        """
-
-        return int(version) >= 0
-
     def numbers_equal(self, other_dcc_number):
         """Checks if the category and numeric parts of this number and the specified one match
 
@@ -428,6 +432,45 @@ class DccNumber(object):
             version_string = self.get_version_suffix()
 
         return "{0}{1}{2}".format(self.category, self.numeric, version_string)
+
+    def has_version(self):
+        """Checks if the DCC number has a version associated with it"""
+
+        return self.version is not None
+
+    @staticmethod
+    def is_dcc_version(version):
+        """Checks if the specified version number is valid
+
+        :param version: version to check
+        """
+
+        return int(version) >= 0
+
+    def get_version_suffix(self):
+        """Returns the string version suffix for the version number"""
+
+        # version 0 should end "x0", otherwise "v1" etc.
+        if not self.has_version():
+            return "-v?"
+        elif self.version is 0:
+            return "-x0"
+        else:
+            return "-v{0}".format(self.version)
+
+    def get_url_path(self):
+        """Returns the URL path that represents this DCC number"""
+
+        # get version suffix, if it is known
+        if self.version is not None:
+            version_suffix = self.get_version_suffix()
+        else:
+            # make version empty
+            version_suffix = ""
+
+        # return the URL with appropriate version suffix
+        return "{0}{1}{2}/of=xml".format(self.category, self.numeric, \
+        version_suffix)
 
     def __str__(self):
         """String representation of the DCC number"""
@@ -456,34 +499,99 @@ class DccNumber(object):
 
         return not self.__eq__(other_dcc_number)
 
-    def get_version_suffix(self):
-        """Returns the DCC URL suffix for the version number"""
+class DccDocId(object):
+    """Represents a DCC document id"""
 
-        # version 0 should end "x0", otherwise "v1" etc.
-        if not self.has_version():
-            return "-v?"
-        elif self.version is 0:
-            return "-x0"
+    def __init__(self, docid, version=None):
+        """Instantiates a DccDocId object
+
+        :param docid: document id
+        :type docid: int
+        :param version: version number of DCC document
+        """
+
+        # create logger
+        self.logger = logging.getLogger("number")
+
+        # check id is valid
+        try:
+            docid = int(docid)
+        except ValueError:
+            raise InvalidDccDocIdException()
+
+        # validate version if it was found
+        if version is not None:
+            # check version is valid
+            if not DccNumber.is_dcc_version(version):
+                raise InvalidDccDocIdException()
+
+            version = int(version)
+
+        # set everything
+        self.docid = int(docid)
+        self.version = version
+
+    def string_repr(self, version=True):
+        """String representation of the document id, with optional version number
+
+        :param version: whether to include version in string
+        """
+
+        # empty version string
+        version_string = ""
+
+        # get version string if requested
+        if version:
+            if self.version is None:
+                version_string = "-?"
+            else:
+                version_string = "-{:d}".format(self.version)
+
+        return "{0}{1}".format(self.docid, version_string)
+
+    def __str__(self):
+        """String representation of the DCC number"""
+
+        return self.string_repr(version=True)
+
+    def __repr__(self):
+        """Representation of the DCC number"""
+
+        return self.__str__()
+
+    def __eq__(self, other):
+        """Checks if the specified docid is equal to this one
+
+        :param other: other docid to compare
+        """
+
+        # compare the category, number and version
+        return self.docid == other.docid and self.version == other.version
+
+    def __ne__(self, other):
+        """Checks if the specified docid is not equal to this one
+
+        :param other: other docid to compare
+        """
+
+        return not self.__eq__(other)
+
+    @classmethod
+    def parse_from_xref(cls, field):
+        """Parses an XML cross-reference
+
+        :param field: XML <xrefto> or <xrefby> element
+        """
+
+        if "version" in field.attrib.keys():
+            version = int(field.attrib['version'])
         else:
-            return "-v{0}".format(self.version)
+            version = None
 
-    def has_version(self):
-        """Checks if the DCC number has a version associated with it"""
+        if "docid" not in field.attrib.keys():
+            raise InvalidXMLCrossReferenceException()
 
-        return self.version is not None
-
-    def get_url_path(self):
-        """Returns the URL path that represents this DCC number"""
-
-        # get version suffix, if it is known
-        if self.version is not None:
-            version_suffix = self.get_version_suffix()
-        else:
-            # make version empty
-            version_suffix = ""
-
-        # return the URL with appropriate version suffix
-        return "{0}{1}{2}".format(self.category, self.numeric, version_suffix)
+        return cls(int(field.attrib['docid']), version=version)
 
 class DccRecord(object):
     """Represents a DCC record"""
@@ -517,20 +625,20 @@ class DccRecord(object):
         return self.__str__()
 
     @classmethod
-    def _fetch(cls, fetcher, dcc_number):
+    def _fetch(cls, fetcher, identifier):
         """Fetches and creates a new DCC record
 
         Optionally downloads associated files.
 
         :param fetcher: fetcher to use to get the page content
-        :param dcc_number: DCC number associated with the record to fetch
+        :param identifier: DCC number associated with the record to fetch
         """
 
         # create logger
         logger = logging.getLogger("record")
 
         # get the page contents
-        contents = fetcher.fetch_record_page(dcc_number)
+        contents = fetcher.fetch_record_page(identifier)
 
         # parse new DCC record
         parser = dcc.patterns.DccRecordParser(contents)
@@ -542,20 +650,23 @@ class DccRecord(object):
         this_dcc_number = parser.extract_dcc_number()
 
         # make sure its number matches the request
-        if this_dcc_number.numbers_equal(dcc_number):
+        if this_dcc_number.numbers_equal(identifier):
             # check if the version matches, if it was specified
-            if dcc_number.version is not None:
-                if this_dcc_number.version != dcc_number.version:
+            if identifier.version is not None:
+                if this_dcc_number.version != identifier.version:
                     # correct document number, but incorrect version
-                    raise DifferentDccRecordException("The retrieved record has the correct \
-number but not the correct version")
+                    raise DifferentDccRecordException("The retrieved record \
+has the correct number but not the correct version")
         else:
             # incorrect document number
-            raise DifferentDccRecordException("The retrieved record number ({0}) is different from the \
-requested one ({1})".format(this_dcc_number, dcc_number))
+            raise DifferentDccRecordException("The retrieved record number \
+({0}) is different from the requested one ({1})".format(this_dcc_number, identifier))
 
         # create record with DCC number
         record = DccRecord(this_dcc_number)
+
+        # set its doc id
+        record.docid = DccDocId(parser.extract_docid())
 
         # set its title
         record.title = parser.extract_title()
@@ -583,11 +694,11 @@ requested one ({1})".format(this_dcc_number, dcc_number))
         map(record.add_file, files)
         logger.info("Found %d attached file(s)", len(files))
 
-        # get and set the referencing records
-        record.referenced_by = parser.extract_referencing_numbers()
+        # get and set the referencing record doc ids
+        record.referenced_by = parser.extract_referencing_ids()
 
-        # get and set the related records
-        record.related = parser.extract_related_numbers()
+        # get and set the related record doc ids
+        record.related = parser.extract_related_ids()
 
         # return the new record
         return record
@@ -759,8 +870,26 @@ class InvalidDccNumberException(Exception):
     """Exception for when a DCC number is invalid"""
     pass
 
+class NoVersionSpecifiedException(Exception):
+    """Exception for when a DCC number has not got a version specified"""
+    pass
+
+class InvalidDccDocIdException(Exception):
+    """Exception for when a document id is invalid"""
+    pass
+
 class DifferentDccRecordException(Exception):
     """Exception for when a different DCC record is retrieved compared to the requested one"""
+    pass
+
+class DifferentDocIdException(Exception):
+    """Exception for when a different document id is retrieved compared to the \
+    requested one"""
+    pass
+
+class InvalidXMLCrossReferenceException(Exception):
+    """Exception for when a provided XML <xrefto> or <xrefby> element is \
+    invalid"""
     pass
 
 class DataNotDownloadedException(Exception):
@@ -773,8 +902,4 @@ class FetcherNotRecognisedException(Exception):
 
 class RecordCannotBeOverwrittenException(Exception):
     """Exception for when a record can't be overwritten due to a user option"""
-    pass
-
-class NoDccRecordVersionSpecifiedException(Exception):
-    """Exception for when no version is specified for a DCC record when required"""
     pass

@@ -109,7 +109,7 @@ class HttpFetcher(Fetcher):
         # create empty dict to hold downloaded records
         self.retrieved_dcc_records = {}
 
-    def _build_dcc_base_url(self, dcc_number):
+    def _build_dcc_record_url(self, dcc_number):
         """Builds a DCC record base URL given the specified DCC number
 
         :param dcc_number: number of DCC record to download
@@ -119,19 +119,6 @@ class HttpFetcher(Fetcher):
             protocol=self.protocol,
             server=self.get_preferred_server(),
             path=dcc_number.get_url_path(),
-            )
-
-    def _build_dcc_record_url(self, dcc_number):
-        """Builds a DCC record URL given the specified DCC number
-
-        :param dcc_number: number of DCC record to download
-        """
-
-        # create and return URL
-        # query string asks for the XML version of the document
-        return '{base}/{query}'.format(
-            base=self._build_dcc_base_url(dcc_number),
-            query='of=xml',
             )
 
     def _build_dcc_author_url(self, author):

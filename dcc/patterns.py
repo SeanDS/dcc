@@ -6,9 +6,11 @@ from __future__ import unicode_literals
 
 import abc
 import logging
+import re
 from datetime import datetime
 import pytz
 import xml.etree.ElementTree as ET
+from bs4 import BeautifulSoup as bs
 import dcc.record
 
 class DccRecordParser(object):
@@ -27,8 +29,36 @@ class DccRecordParser(object):
         try:
             self.root = ET.fromstring(self.content)
         except ET.ParseError:
-            raise DccNumberNotFoundException()
-        assert self.root.attrib['project'] == 'LIGO'
+            # This is not an XML document
+            # Do we have an error page instead? Use the HTML parser.
+
+            # get an HTML navigator object for the record
+            navigator = bs(self.content, "html.parser")
+
+            # check if we have the login page, specified by the presence of an h3
+            # with specific text
+            if navigator.find("h3", text="Accessing private documents"):
+                raise NotLoggedInException()
+
+            # check if we have the default page (DCC redirects here for all
+            # unrecognised requests)
+            if navigator.find("strong", text="Search for Documents by"):
+                raise UnrecognisedDccRecordException()
+
+            # check if we have the error page
+            if navigator.find("dt", class_="Error"):
+                # we have an error, but what is its message?
+                if navigator.find("dd", text=re.compile("User .*? is not authorized to view this document.")):
+                    # unauthorised to view
+                    raise UnauthorisedAccessException()
+
+            # unknown error
+            raise UnknownDccErrorException()
+
+        if not self.root.attrib['project'] == 'LIGO':
+            # invalid DCC document
+            raise InvalidDCCXMLDocumentException()
+
         self.doc = self.root[0]
         self.docrev = self.doc[0]
 
@@ -37,6 +67,9 @@ class DccRecordParser(object):
         n = self.docrev.find('dccnumber').text[1:]
         v = self.docrev.attrib['version']
         return dcc.record.DccNumber(t,n,v)
+
+    def extract_docid(self):
+        return int(self.docrev.attrib['docid'])
 
     def extract_title(self):
         return self.docrev.find('title').text
@@ -70,12 +103,11 @@ class DccRecordParser(object):
             files.append(dcc.record.DccFile(title, name, url))
         return files
 
-    def extract_related_numbers(self):
-        # FIXME: DCC NEEDS TO ADD THIS TO XML
-        return []
+    def extract_related_ids(self):
+        return [dcc.record.DccDocId.parse_from_xref(f) for f in self.docrev.findall('xrefto')]
 
-    def extract_referencing_numbers(self):
-        return [f.attrib['docid'] for f in self.docrev.findall('xrefby')]
+    def extract_referencing_ids(self):
+        return [dcc.record.DccDocId.parse_from_xref(f) for f in self.docrev.findall('xrefby')]
 
 class DccAuthorPageParser(object):
     """Represents a parser for DCC author pages"""
@@ -159,3 +191,37 @@ the README for more information)"
 
         # call parent constructor with the error message
         super(NotLoggedInException, self).__init__(self.message, *args, **kwargs)
+
+class UnrecognisedDccRecordException(Exception):
+    """Exception for when a page is not recognised by the DCC server"""
+    pass
+
+class UnauthorisedAccessException(Exception):
+    """Exception for when a document is not available to the user to be viewed"""
+    pass
+
+class InvalidDCCXMLDocumentException(Exception):
+    """Exception for when a document is not a valid LIGO DCC XML record"""
+
+    # error message given to user
+    message = "The document was retrieved, but is not a valid LIGO DCC XML \
+record"
+
+    def __init__(self, *args, **kwargs):
+        """Constructs an invalid LIGO DCC XML record exception"""
+
+        # call parent constructor with the error message
+        super(InvalidDCCXMLDocumentException, self).__init__(self.message, \
+        *args, **kwargs)
+
+class UnknownDccErrorException(Exception):
+    """Exception for when an unknown error is reported by the DCC"""
+
+    # error message given to user
+    message = "An unknown error occurred; please report this to the developers"
+
+    def __init__(self, *args, **kwargs):
+        """Constructs an unknown exception"""
+
+        # call parent constructor with the error message
+        super(UnknownDccErrorException, self).__init__(self.message, *args, **kwargs)
