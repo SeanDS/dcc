@@ -169,6 +169,7 @@ class View(Cmd):
 
         print('number: {}'.format(record.dcc_number))
         print('title: {}'.format(record.title))
+        print('modified: {}'.format(record.contents_revision_date))
         print('authors:')
         for a in record.authors:
             print('  {}'.format(a.name.strip()))

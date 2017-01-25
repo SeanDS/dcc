@@ -89,7 +89,15 @@ class DccRecordParser(object):
         return [r.attrib['version'] for r in self.docrev.find('otherversions')]
 
     def extract_revision_dates(self):
-        return (None, self.docrev.attrib['modified'], None)
+        # DCC dates use the Pacific timezone
+        pacific = pytz.timezone("US/Pacific")
+
+        # parse modified date string localised to Pacific Time
+        modified = pacific.localize(datetime.strptime( \
+        self.docrev.attrib['modified'], "%Y-%m-%d %H:%M:%S"))
+
+        # other dates aren't in XML yet
+        return (None, modified, None)
 
     def extract_attached_files(self):
         files = []
