@@ -1,6 +1,7 @@
 # DCC API
 
-An API for the [LIGO Scientific Collaboration](http://www.ligo.org/) [Document Control Center](https://dcc.ligo.org/) (DCC).
+An API for the [LIGO Scientific Collaboration](http://www.ligo.org/)
+[Document Control Center](https://dcc.ligo.org/) (DCC).
 
 ## Features
 
@@ -16,15 +17,20 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/) [Document C
   - [pytz](https://pypi.python.org/pypi/pytz)
   - (Optional) [graphviz](https://pypi.python.org/pypi/graphviz) for Python
 
-LIGO.org credentials are given to members of the interferometric gravitational wave community and are not publicly available. The API may work with the public DCC without these credentials, but it has not been tested.
+LIGO.org credentials are given to members of the interferometric gravitational
+wave community and are not publicly available. The API may work with the public
+DCC without these credentials, but it has not been tested.
 
-The `graphviz` package is for creating graphs of connected DCC documents, and is optional if you don't need to do this. All of the packages above can be obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
+The `graphviz` package is for creating graphs of connected DCC documents, and
+is optional if you don't need to do this. All of the packages above can be
+obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
 ```bash
 sudo pip install bs4 pytz graphviz
 ```
 from a terminal.
 
-The `graphviz` above is just an interface package for Python. You also need to make sure you have the full `graphviz` program installed too. On Ubuntu:
+The `graphviz` above is just an interface package for Python. You also need to
+make sure you have the full `graphviz` program installed too. On Ubuntu:
 ```bash
 sudo apt-get install graphviz
 ```
@@ -42,18 +48,25 @@ then create a new archive:
 # create a new archive with the session cookie created by Shibboleth
 archive = DccArchive(cookies="_shibsession_xxx=yyy")
 ```
-You'll need the `_shibsession_xxx=yyy` session cookie that is created when you log in to the DCC using a web browser. One way in which to extract this cookie is to load the DCC in your browser, then copy and paste the following Javascript into your location bar:
+You'll need the `_shibsession_xxx=yyy` session cookie that is created when you
+log in to the DCC using a web browser. One way in which to extract this cookie
+is to load the DCC in your browser, then copy and paste the following
+Javascript into your location bar:
 ```javascript
 javascript:document.cookie.split(";")
 ```
-That should show you the contents of the cookies associated with the DCC on your browser. Simply copy and paste the one resembling `_shibsession_xxx=yyy` into the constructor for `DccArchive`. Note, this string is typically around 130 characters long.
+That should show you the contents of the cookies associated with the DCC on your
+browser. Simply copy and paste the one resembling `_shibsession_xxx=yyy` into
+the constructor for `DccArchive`. Note, this string is typically around 130
+characters long.
 
 To fetch the record, use the `fetch_record` method of the `archive` you created:
 ```python
 # fetch a DCC record
 record = archive.fetch_record("P1500227")
 ```
-The `fetch_record` method accepts any of the arguments that `DccNumber` does. You can construct the DCC number to download in a few different ways:
+The `fetch_record` method accepts any of the arguments that `DccNumber` does.
+You can construct the DCC number to download in a few different ways:
 ```python
 # fetch a DCC record
 record = archive.fetch_record("P1500227")
@@ -71,11 +84,13 @@ record = archive.fetch_record("P", 1500227, 3) # equivalent to P1500227-v3
 record = archive.fetch_record("P1500227", 3) # equivalent to P1500227-v3
 ```
 
-You may also specify the optional argument to download the files associated with the record:
+You may also specify the optional argument to download the files associated
+with the record:
 ```python
 record = archive.fetch_record("P1500227-v3", download_files=True)
 ```
-When this is set, the files associated with the version specified will be downloaded.
+When this is set, the files associated with the version specified will be
+downloaded.
 
 ### Extracting useful information
 You can then print some useful information:
@@ -102,7 +117,8 @@ print record.filenames
 ```
 
 ### Opening files
-If you specified the `download_files=True` flag as part of the `fetch_record` constructor, then you will be able to access the files using `record.files`:
+If you specified the `download_files=True` flag as part of the `fetch_record`
+constructor, then you will be able to access the files using `record.files`:
 ```python
 # list of files attached to this document revision
 print record.files
@@ -117,13 +133,18 @@ Open the file by calling `open_file`:
 ```python
 f.open_file()
 ```
-This should launch an appropriate program to open the file. Note that the file is stored in a temporary location by default, so if you wish to make a local copy you should save it somewhere else from within the program that is launched.
+This should launch an appropriate program to open the file. Note that the file
+is stored in a temporary location by default, so if you wish to make a local
+copy you should save it somewhere else from within the program that is launched.
 
 ### Graphs
-You can use `graphviz` to generate graphs representing the connections between DCC documents, authors and more. There is an example provided in `examples/graph.py`.
+You can use `graphviz` to generate graphs representing the connections between
+DCC documents, authors and more. There is an example provided in
+`examples/graph.py`.
 
 ### Logging
-`DCC API` has logging capabilities. To log to `stdout`, just put this at the top of your script:
+`DCC API` has logging capabilities. To log to `stdout`, just put this at the
+top of your script:
 ```python
 import logging
 
@@ -133,4 +154,7 @@ logging.getLogger().setLevel(logging.DEBUG)
 
 ## Future improvements
  - Local archiving
- - Log in
+
+## Credits
+Sean Leavey <sean.leavey@ligo.org>
+Jameson Graef Rollins <jameson.rollins@ligo.org>
