@@ -22,50 +22,6 @@ logging.basicConfig(format='%(message)s',
                     )
 
 ##################################################
-
-def _get_cookie_path():
-    return '/tmp/ecpcookie.u{}'.format(os.getuid())
-
-def _load_dcc_archive():
-    # this is where the above writes the cookie.  not a very friendly
-    # interface
-    cookie_path = _get_cookie_path()
-    if not os.path.exists(cookie_path):
-        # load ECP cookies
-        cmd = ['ecp-cookie-init', '-k', '-q', '-n', 'https://dcc.ligo.org/dcc/']
-        out = subprocess.check_output(cmd)
-    # FIXME: not sure why i couldn't just load the cookie file via
-    # cookielib, but for some reason it won't load
-    # https://docs.python.org/2/library/cookielib.html
-    #
-    # cj = cookielib.FileCookieJar(cookie_path)
-    # cj.load()
-    # cdata = cj._cookies['dcc.ligo.org']['/']
-    #
-    # stupid manual extraction
-    with open(cookie_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            if line[0] in ['#', '', ' ']:
-                continue
-            data = line.split()
-            if data[0] == 'dcc.ligo.org':
-                cookie = '{}={}'.format(data[5], data[6])
-                break
-    fetcher = HttpFetcher(cookie)
-    archive = DccArchive(fetcher=fetcher)
-    return archive
-
-def enable_verbose_logs():
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('%(name)-16s - %(levelname)-10s - %(message)s'))
-    logger = logging.getLogger()
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-
-##################################################
 # The following is a custom subcommand CLI implementation based on
 # callable objects.  Each command is represented by Cmd object, whose
 #
@@ -121,6 +77,59 @@ AUTHOR
            synopsis=SYNOPSIS,
            ).strip()
 
+def _get_cookie_path():
+    return '/tmp/ecpcookie.u{}'.format(os.getuid())
+
+def _load_dcc_archive():
+    # this is where the above writes the cookie.  not a very friendly
+    # interface
+    cookie_path = _get_cookie_path()
+    if not os.path.exists(cookie_path):
+        # load ECP cookies
+        cmd = ['ecp-cookie-init', '-k', '-q', '-n', 'https://dcc.ligo.org/dcc/']
+        out = subprocess.check_output(cmd)
+    # FIXME: not sure why i couldn't just load the cookie file via
+    # cookielib, but for some reason it won't load
+    # https://docs.python.org/2/library/cookielib.html
+    #
+    # cj = cookielib.FileCookieJar(cookie_path)
+    # cj.load()
+    # cdata = cj._cookies['dcc.ligo.org']['/']
+    #
+    # stupid manual extraction
+    with open(cookie_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if line[0] in ['#', '', ' ']:
+                continue
+            data = line.split()
+            if data[0] == 'dcc.ligo.org':
+                cookie = '{}={}'.format(data[5], data[6])
+                break
+    fetcher = HttpFetcher(cookie)
+    archive = DccArchive(fetcher=fetcher)
+    return archive
+
+def enable_verbose_logs():
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+def fetch_dcc_record(archive, dccid):
+    try:
+        return archive.fetch_record(dccid)
+    except DccNumberNotFoundException:
+        sys.exit("Could not find DCC document '{}'.".format(args.dccid))
+    except NotLoggedInException:
+        sys.exit("You are not logged in, or your authentication cookie is \
+invalid; see `{prog} {cmd}` for more information".format(prog=PROG, cmd=Help.cmd))
+    except UnauthorisedAccessException:
+        sys.exit("You are not authorised to view this document")
+
 class Cmd(object):
     """base class for commands"""
     cmd = ''
@@ -156,15 +165,7 @@ class View(Cmd):
             enable_verbose_logs()
 
         archive = _load_dcc_archive()
-        try:
-            record = archive.fetch_record(args.dccid)
-        except DccNumberNotFoundException:
-            sys.exit("Could not find DCC document '{}'.".format(args.dccid))
-        except NotLoggedInException:
-            sys.exit("You are not logged in, or your authentication cookie is \
-invalid; see `{prog} {cmd}` for more information".format(prog=PROG, cmd=Help.cmd))
-        except UnauthorisedAccessException:
-            sys.exit("You are not authorised to view this document")
+        record = fetch_dcc_record(archive, args.dccid)
 
         print('number: {}'.format(record.dcc_number))
         print('title: {}'.format(record.title))
@@ -209,12 +210,8 @@ class Fetch(Cmd):
             enable_verbose_logs()
 
         archive = _load_dcc_archive()
-        try:
-            record = archive.fetch_record(args.dccid)
-        except UnknownDccErrorException:
-            sys.exit("Could not find DCC document '{}'.".format(args.dccid))
-        if not record.files:
-            sys.exit("No files for document.")
+        record = fetch_dcc_record(archive, args.dccid)
+
         try:
             i = int(args.fileid)
         except ValueError:
@@ -223,6 +220,7 @@ class Fetch(Cmd):
             f = record.files[i]
         except IndexError:
             sys.exit("Could not find file '{}'.".format(args.fileid))
+
         archive.download_file_data(f)
         if args.save:
             out = f.filename

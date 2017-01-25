@@ -69,7 +69,7 @@ class DccRecordParser(object):
         return dcc.record.DccNumber(t,n,v)
 
     def extract_docid(self):
-        return int(self.docrev.attrib['docid'])
+        return dcc.record.DccDocId(self.docrev.attrib['docid'])
 
     def extract_title(self):
         return self.docrev.find('title').text
