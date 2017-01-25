@@ -132,7 +132,7 @@ class DccArchive(object):
         # set the record
         self.records[dcc_number_str] = record
 
-        self.logger.info("Entry %s written to archive", dcc_number_str)
+        self.logger.info("Entry %s downloaded from DCC", dcc_number_str)
 
     def has_record(self, dcc_number):
         """Works out if the specified DCC number or document id exists in the \
