@@ -85,6 +85,40 @@ class DccRecordParser(object):
             authors.append(dcc.record.DccAuthor(name, enum))
         return authors
 
+    def extract_abstract(self):
+        return unicode(self.docrev.find('abstract').text)
+
+    def extract_keywords(self):
+        return [unicode(k.text) for k in self.docrev.findall('keyword')]
+
+    def extract_note(self):
+        return unicode(self.docrev.find('note').text)
+
+    def extract_publication_info(self):
+        return unicode(self.docrev.find('publicationinfo').text)
+
+    def extract_journal_reference(self):
+        ref = self.docrev.find('reference')
+
+        if ref:
+            # journal reference present
+
+            # get URL attribute
+            if 'href' in ref.attrib.keys():
+                url = ref.attrib['href']
+            else:
+                url = None
+
+            # get contained fields
+            citation = ref.find('citation').text
+            journal = ref.find('journal').text
+            volume = ref.find('volume').text
+            page = ref.find('page').text
+
+            ref = dcc.record.DccJournalRef(journal, volume, page, citation, url)
+
+        return ref
+
     def extract_other_version_numbers(self):
         return [r.attrib['version'] for r in self.docrev.find('otherversions')]
 

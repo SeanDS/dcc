@@ -680,6 +680,13 @@ has the correct number but not the correct version")
         # set authors
         record.authors = parser.extract_authors()
 
+        # set abstract, keywords and note
+        record.abstract = parser.extract_abstract()
+        record.keywords = parser.extract_keywords()
+        record.note = parser.extract_note()
+        record.publication_info = parser.extract_publication_info()
+        record.journal_reference = parser.extract_journal_reference()
+
         # get other version numbers
         record.other_version_numbers = parser.extract_other_version_numbers()
         logger.info("Found %d other version number(s)", len(record.other_version_numbers))
@@ -871,6 +878,63 @@ class DccFile(object):
 
         # set the (string) path
         self.local_path = tmp_file.name
+
+class DccJournalRef(object):
+    """Represents a journal reference attached to a DCC document"""
+
+    def __init__(self, journal=None, volume=None, page=None, citation=None, \
+    url=None):
+        if journal is not None:
+            journal = unicode(journal)
+
+        if volume is not None:
+            volume = int(volume)
+
+        if page is not None:
+            # NOTE: page is not necessarily numeric
+            page = unicode(page)
+
+        if citation is not None:
+            citation = unicode(citation)
+
+        if url is not None:
+            # FIXME: validate URL
+            url = unicode(url)
+
+        self.journal = journal
+        self.volume = volume
+        self.page = page
+        self.citation = citation
+        self.url = url
+
+    def __str__(self):
+        """String representation of this journal reference"""
+
+        journal = self.journal
+        volume = self.volume
+        page = self.page
+        url = self.url
+
+        if journal is None:
+            journal = "Unknown journal"
+
+        if volume is None:
+            volume = "?"
+
+        if page is None:
+            page = "?"
+
+        if url is not None:
+            url = "({})".format(url)
+        else:
+            url = ""
+
+        return "{0} vol. {1}, pg. {2} {3}".format(journal, volume, page, url)
+
+    def __repr__(self):
+        """Representation of this DCC file"""
+
+        return self.__str__()
 
 class InvalidDccNumberException(Exception):
     """Exception for when a DCC number is invalid"""

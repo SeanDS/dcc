@@ -167,12 +167,14 @@ class View(Cmd):
         archive = _load_dcc_archive()
         record = fetch_dcc_record(archive, args.dccid)
 
-        print('number: {}'.format(record.dcc_number))
-        print('title: {}'.format(record.title))
-        print('modified: {}'.format(record.contents_revision_date))
+        print(u'number: {}'.format(record.dcc_number))
+        print(u'title: {}'.format(record.title))
+        print(u'modified: {}'.format(record.contents_revision_date))
         print('authors:')
         for a in record.authors:
             print('  {}'.format(a.name.strip()))
+        print(u'abstract: {}'.format(record.abstract))
+        print(u'keywords: {}'.format(", ".join(record.keywords)))
         print('files:')
         for i,f in enumerate(record.files):
             print('  {} {}'.format(i, f))
