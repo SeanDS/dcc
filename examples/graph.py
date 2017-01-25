@@ -1,5 +1,8 @@
 from __future__ import unicode_literals
 
+raise NotImplementedError("This example will not work until related DCC numbers \
+are made available in DCC record XML documents")
+
 import sys
 import logging
 import graphviz
