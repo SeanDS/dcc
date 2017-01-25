@@ -58,6 +58,13 @@ def _load_dcc_archive():
     archive = DccArchive(fetcher=fetcher)
     return archive
 
+def enable_verbose_logs():
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(name)-16s - %(levelname)-10s - %(message)s'))
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
 ##################################################
 # The following is a custom subcommand CLI implementation based on
 # callable objects.  Each command is represented by Cmd object, whose
@@ -137,11 +144,17 @@ class View(Cmd):
         Cmd.__init__(self)
         self.parser.add_argument('dccid',
                                  help="DCC document number")
+        self.parser.add_argument('-v', '--verbose', action='store_true',
+                                 help="enable verbose output")
         # self.parser.add_argument('field', nargs='?',
         #                          help="document field")
 
     def __call__(self, args):
         args = self.parser.parse_args(args)
+
+        if args.verbose:
+            enable_verbose_logs()
+
         archive = _load_dcc_archive()
         try:
             record = archive.fetch_record(args.dccid)
@@ -186,9 +199,15 @@ class Fetch(Cmd):
                                  help="file number or name")
         self.parser.add_argument('-s', '--save', action='store_true',
                                  help="save file to the current directory")
+        self.parser.add_argument('-v', '--verbose', action='store_true',
+                                 help="enable verbose output")
 
     def __call__(self, args):
         args = self.parser.parse_args(args)
+
+        if args.verbose:
+            enable_verbose_logs()
+
         archive = _load_dcc_archive()
         try:
             record = archive.fetch_record(args.dccid)
