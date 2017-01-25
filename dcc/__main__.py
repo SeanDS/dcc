@@ -14,7 +14,8 @@ import collections
 
 from .comms import HttpFetcher
 from .record import DccArchive, DccNumber
-from .patterns import DccNumberNotFoundException
+from .patterns import DccNumberNotFoundException, NotLoggedInException, \
+UnauthorisedAccessException
 
 logging.basicConfig(format='%(message)s',
                     level=os.getenv('LOG_LEVEL', 'INFO').upper(),
@@ -146,6 +147,12 @@ class View(Cmd):
             record = archive.fetch_record(args.dccid)
         except DccNumberNotFoundException:
             sys.exit("Could not find DCC document '{}'.".format(args.dccid))
+        except NotLoggedInException:
+            sys.exit("You are not logged in, or your authentication cookie is \
+invalid; see `{prog} {cmd}` for more information".format(prog=PROG, cmd=Help.cmd))
+        except UnauthorisedAccessException:
+            sys.exit("You are not authorised to view this document")
+
         print('number: {}'.format(record.dcc_number))
         print('title: {}'.format(record.title))
         print('authors:')
@@ -160,7 +167,6 @@ class View(Cmd):
         print('related:')
         for r in record.related:
             print('  {}'.format(r))
-            print(args)
 
 class Fetch(Cmd):
     """Fetch/view entry files.
