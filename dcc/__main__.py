@@ -50,7 +50,7 @@ def _load_dcc_archive():
             if data[0] == 'dcc.ligo.org':
                 cookie = '{}={}'.format(data[5], data[6])
                 break
-    fetcher = HttpFetcher(cookie, use_xml=True)
+    fetcher = HttpFetcher(cookie)
     archive = DccArchive(fetcher=fetcher)
     return archive
 
@@ -295,7 +295,7 @@ def main():
     args = sys.argv[2:]
     func = get_func(cmd)
     func()(args)
-    
+
 ##################################################
 
 if __name__ == '__main__':
