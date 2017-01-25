@@ -460,8 +460,11 @@ class DccNumber(object):
         else:
             return "-v{0}".format(self.version)
 
-    def get_url_path(self):
-        """Returns the URL path that represents this DCC number"""
+    def get_url_path(self, xml=True):
+        """Returns the URL path that represents this DCC number
+
+        :param xml: whether to append the XML request string
+        """
 
         # get version suffix, if it is known
         if self.version is not None:
@@ -470,9 +473,14 @@ class DccNumber(object):
             # make version empty
             version_suffix = ""
 
+        if xml:
+            xml_str = "/of=xml"
+        else:
+            xml_str = ""
+
         # return the URL with appropriate version suffix
-        return "{0}{1}{2}/of=xml".format(self.category, self.numeric, \
-        version_suffix)
+        return "{0}{1}{2}{3}".format(self.category, self.numeric, \
+        version_suffix, xml_str)
 
     def __str__(self):
         """String representation of the DCC number"""

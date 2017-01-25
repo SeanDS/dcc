@@ -243,7 +243,7 @@ class Open(Cmd):
     def __call__(self, args):
         args = self.parser.parse_args(args)
         archive = _load_dcc_archive()
-        url = archive.fetcher.get_url(DccNumber(args.dccid))
+        url = archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)
         cmd = ['xdg-open', url]
         subprocess.Popen(cmd)
 

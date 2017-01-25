@@ -28,14 +28,11 @@ class Fetcher(object):
 
         self.progress_hook = progress_hook
 
-    def get_url(self, dcc_number):
-        """Return the record url for DCC number
-
-        :param dcc_number: DCC number
-        """
+    def get_record_url(self, *args, **kwargs):
+        """Return the record url for DCC number"""
 
         # create URL, fetch it and return it
-        return self._build_dcc_base_url(dcc_number)
+        return self._build_dcc_record_url(*args, **kwargs)
 
     def fetch_record_page(self, dcc_number):
         """Fetches the DCC record page specified by the provided number
@@ -65,7 +62,7 @@ class Fetcher(object):
         return self._get_url_contents(dcc_file.url)
 
     @abc.abstractmethod
-    def _build_dcc_record_url(self, dcc_number):
+    def _build_dcc_record_url(self, dcc_number, xml=True):
         """Builds the URL representing the specified DCC number"""
 
         pass
@@ -109,16 +106,17 @@ class HttpFetcher(Fetcher):
         # create empty dict to hold downloaded records
         self.retrieved_dcc_records = {}
 
-    def _build_dcc_record_url(self, dcc_number):
+    def _build_dcc_record_url(self, dcc_number, xml=True):
         """Builds a DCC record base URL given the specified DCC number
 
         :param dcc_number: number of DCC record to download
+        :param xml: whether to append the XML request string
         """
 
         return '{protocol}://{server}/{path}'.format(
             protocol=self.protocol,
             server=self.get_preferred_server(),
-            path=dcc_number.get_url_path(),
+            path=dcc_number.get_url_path(xml=xml),
             )
 
     def _build_dcc_author_url(self, author):
