@@ -12,31 +12,40 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/)
 ## Prerequisites
 
   - LIGO.org credentials (`albert.einstein`)
-  - Python 2.7+
+  - Python 3.5+
+  - Kerberos
+  - [LSCSoft](https://www.lsc-group.phys.uwm.edu/daswg/docs/howto/lscsoft-install.html)
   - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
   - [pytz](https://pypi.python.org/pypi/pytz)
   - (Optional) [graphviz](https://pypi.python.org/pypi/graphviz) for Python
 
-LIGO.org credentials are given to members of the interferometric gravitational
+LIGO.ORG credentials are given to members of the interferometric gravitational
 wave community and are not publicly available. The API may work with the public
 DCC without these credentials, but it has not been tested.
 
 The `graphviz` package is for creating graphs of connected DCC documents, and
-is optional if you don't need to do this. All of the packages above can be
-obtained using [pip](https://pip.pypa.io/). On Ubuntu, just run
-```bash
-sudo pip install bs4 pytz graphviz
-```
-from a terminal.
-
-The `graphviz` above is just an interface package for Python. You also need to
-make sure you have the full `graphviz` program installed too. On Ubuntu:
-```bash
-sudo apt-get install graphviz
-```
+is optional if you don't need to do this.
 
 ## Quick start
 Before doing anything else, add the `dcc` package to your Python path.
+
+### Kerberos authentication
+You must obtain a Kerberos token to authenticate yourself against the LIGO
+Kerberos directory, otherwise `dcc-api` will not be able to obtain a session
+cookie to access the DCC. This is one possible way to authenticating with
+Kerberos:
+```bash
+kinit albert.einstein@LIGO.ORG
+```
+where `albert.einstein` is your username. Note that the `@LIGO.ORG` realm is
+case sensitive.
+
+### Command line interpreter
+`dcc-api` has a command line interpreter. In your terminal, type
+```bash
+python3 -m dcc help
+```
+to get started.
 
 ### Downloading a record
 To download a record, import `DccArchive`:
@@ -45,49 +54,42 @@ from dcc.record import DccArchive
 ```
 then create a new archive:
 ```python
-# create a new archive with the session cookie created by Shibboleth
-archive = DccArchive(cookies="_shibsession_xxx=yyy")
+# create a new archive
+archive = DccArchive()
 ```
-You'll need the `_shibsession_xxx=yyy` session cookie that is created when you
-log in to the DCC using a web browser. One way in which to extract this cookie
-is to load the DCC in your browser, then copy and paste the following
-Javascript into your location bar:
-```javascript
-javascript:document.cookie.split(";")
-```
-That should show you the contents of the cookies associated with the DCC on your
-browser. Simply copy and paste the one resembling `_shibsession_xxx=yyy` into
-the constructor for `DccArchive`. Note, this string is typically around 130
-characters long.
+The archiver by default uses `dcc.comms.HttpFetcher` to retrieve documents from
+the DCC, and handles authentication via the cookies set by visiting
+https://dcc.ligo.org/dcc. Note that you must already have a valid Kerberos
+ticket for the LIGO.ORG realm (see `Kerberos authentication`).
 
 To fetch the record, use the `fetch_record` method of the `archive` you created:
 ```python
 # fetch a DCC record
-record = archive.fetch_record("P1500227")
+record = archive.fetch_record("P150914")
 ```
 The `fetch_record` method accepts any of the arguments that `DccNumber` does.
 You can construct the DCC number to download in a few different ways:
 ```python
 # fetch a DCC record
-record = archive.fetch_record("P1500227")
+record = archive.fetch_record("P150914")
 
 # fetch a specific version
-record = archive.fetch_record("P1500227-v3")
+record = archive.fetch_record("P150914-v14")
 
 # fetch by category and number
-record = archive.fetch_record("P", 1500227) # equivalent to P1500227
+record = archive.fetch_record("P", 150914) # equivalent to P150914
 
 # fetch by category, number and version
-record = archive.fetch_record("P", 1500227, 3) # equivalent to P1500227-v3
+record = archive.fetch_record("P", 150914, 14) # equivalent to P150914-v14
 
 # fetch by separate DCC number and version
-record = archive.fetch_record("P1500227", 3) # equivalent to P1500227-v3
+record = archive.fetch_record("P150914", 14) # equivalent to P150914-v14
 ```
 
 You may also specify the optional argument to download the files associated
 with the record:
 ```python
-record = archive.fetch_record("P1500227-v3", download_files=True)
+record = archive.fetch_record("P150914-v14", download_files=True)
 ```
 When this is set, the files associated with the version specified will be
 downloaded.
@@ -151,9 +153,6 @@ import logging
 logging.getLogger().addHandler(logging.StreamHandler())
 logging.getLogger().setLevel(logging.DEBUG)
 ```
-
-## Future improvements
- - Local archiving
 
 ## Credits
 Sean Leavey <sean.leavey@ligo.org>
