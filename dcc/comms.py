@@ -100,6 +100,22 @@ class HttpFetcher(Fetcher):
         # call parent constructor
         super(HttpFetcher, self).__init__(*args, **kwargs)
 
+    def get_preferred_server(self):
+        """Returns the user's preferred server"""
+
+        # for now, just return the main one
+        return self.servers[0]
+
+    def _build_dcc_url(self, path=''):
+        """Builds a DCC URL given path"""
+        if path:
+            path = '/{}'.format(path)
+        return '{protocol}://{server}{path}'.format(
+            protocol=self.protocol,
+            server=self.get_preferred_server(),
+            path=path,
+            )
+
     def _build_dcc_record_url(self, dcc_number, xml=True):
         """Builds a DCC record base URL given the specified DCC number
 
@@ -107,11 +123,7 @@ class HttpFetcher(Fetcher):
         :param xml: whether to append the XML request string
         """
 
-        return '{protocol}://{server}/{path}'.format(
-            protocol=self.protocol,
-            server=self.get_preferred_server(),
-            path=dcc_number.get_url_path(xml=xml),
-            )
+        return self._build_dcc_url(dcc_number.get_url_path(xml=xml))
 
     def _build_dcc_author_url(self, author):
         """Builds a DCC author page URL given the specified author
@@ -119,15 +131,8 @@ class HttpFetcher(Fetcher):
         :param author: author to download
         """
 
-        # create and return URL
-        return self.protocol + "://" + self.get_preferred_server() + \
-        "/cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid)
+        return self._build_dcc_url("cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid))
 
-    def get_preferred_server(self):
-        """Returns the user's preferred server"""
-
-        # for now, just return the main one
-        return self.servers[0]
 
     def _get_url_contents(self, url):
         """Gets the contents at the specified URL
