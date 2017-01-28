@@ -2,7 +2,7 @@
 
 """Record classes"""
 
-from __future__ import unicode_literals
+
 
 import sys
 import os
@@ -15,11 +15,10 @@ import dcc.patterns
 class DccArchive(object):
     """Represents a collection of DCC documents"""
 
-    def __init__(self, fetcher='http', cookies='', progress_hook=None):
+    def __init__(self, fetcher='http', progress_hook=None):
         """Instantiates a DCC archive
 
         :param fetcher: type of fetcher to use, or fetcher object
-        :param cookies: cookies to pass to fetcher, if necessary
         :param progress_hook: callable to send download progress to
         """
 
@@ -31,13 +30,11 @@ class DccArchive(object):
             # a fetcher was provided already
             self.fetcher = fetcher
         else:
-            # validate fetcher and cookies as strings
-            fetcher = unicode(fetcher)
-            cookies = unicode(cookies)
+            fetcher = str(fetcher)
 
             if fetcher == 'http':
                 # create an HTTP fetcher
-                self.fetcher = dcc.comms.HttpFetcher(cookies)
+                self.fetcher = dcc.comms.HttpFetcher()
             else:
                 # fetcher not recognised
                 raise FetcherNotRecognisedException()
@@ -57,7 +54,7 @@ class DccArchive(object):
     def __repr__(self):
         """Print representation of the archive"""
 
-        return unicode(self)
+        return str(self)
 
     def fetch_record(self, key, force=False, *args, **kwargs):
         """Fetches a DCC record and adds it to the archive
@@ -75,11 +72,11 @@ class DccArchive(object):
         overwrite = bool(kwargs.get('overwrite', False))
 
         # remove download_files from kwargs
-        if kwargs.has_key('download_files'):
+        if 'download_files' in kwargs:
             del kwargs['download_files']
 
         # remove overwrite from kwargs
-        if kwargs.has_key('overwrite'):
+        if 'overwrite' in kwargs:
             del kwargs['overwrite']
 
         # get DCC number from input(s)
@@ -121,7 +118,7 @@ class DccArchive(object):
         version=True)
 
         # check if record already exists
-        if dcc_number_str in self.records.keys():
+        if dcc_number_str in self.records:
             # check if the user wants it overwritten
             if not overwrite:
                 # user doesn't want overwriting, so raise an exception
@@ -147,14 +144,14 @@ class DccArchive(object):
 
         # if the number is not a DccNumber, parse it as one
         if not isinstance(dcc_number, DccNumber):
-            dcc_number = DccNumber(unicode(dcc_number))
+            dcc_number = DccNumber(str(dcc_number))
 
         # make sure a version is present
         if not dcc_number.has_version():
             raise NoVersionSpecifiedException()
 
         return DccArchive.get_dcc_number_str(dcc_number, version=True) \
-        in self.records.keys()
+        in self.records
 
     def has_document(self, dcc_number):
         """Checks if the archive contains any version of the specified \
@@ -167,7 +164,7 @@ class DccArchive(object):
 
         # if the number is not a DccNumber, parse it as one
         if not isinstance(dcc_number, DccNumber):
-            dcc_number = DccNumber(unicode(dcc_number))
+            dcc_number = DccNumber(str(dcc_number))
 
         # if a version is present, tell the user it is being ignored
         if dcc_number.has_version():
@@ -191,7 +188,7 @@ class DccArchive(object):
     def list_records(self):
         """Lists the records contained within the archive"""
 
-        return [unicode(record) for record in self.records.values()]
+        return [str(record) for record in self.records.values()]
 
     def download_record_file_data(self, record):
         """Downloads the file data attached to the specified record
@@ -257,7 +254,7 @@ class DccAuthor(object):
         """
 
         # set name
-        self.name = unicode(name)
+        self.name = str(name)
 
         # set id
         try:
@@ -355,19 +352,19 @@ class DccNumber(object):
                         string")
 
                 # numeric part is between second character and index
-                numeric = unicode(first_id[1:hyphen_index])
+                numeric = str(first_id[1:hyphen_index])
 
                 # version is last part, two places beyond start of hyphen
                 version = int(first_id[hyphen_index+2:])
             else:
                 # numeric is everything after first character
-                numeric = unicode(first_id[1:])
+                numeric = str(first_id[1:])
 
             # category should be first
-            category = unicode(first_id[0])
+            category = str(first_id[0])
         else:
             # category is the first argument
-            category = unicode(first_id)
+            category = str(first_id)
 
         # check category is valid
         if not DccNumber.is_category_letter(category):
@@ -398,7 +395,7 @@ class DccNumber(object):
         """
 
         # check if letter is in list of valid letters
-        return letter in cls.document_type_letters.keys()
+        return letter in cls.document_type_letters
 
     @staticmethod
     def is_dcc_numeric(numeric):
@@ -589,12 +586,12 @@ class DccDocId(object):
         :param field: XML <xrefto> or <xrefby> element
         """
 
-        if "version" in field.attrib.keys():
+        if "version" in field.attrib:
             version = int(field.attrib['version'])
         else:
             version = None
 
-        if "docid" not in field.attrib.keys():
+        if "docid" not in field.attrib:
             raise InvalidXMLCrossReferenceException()
 
         return cls(int(field.attrib['docid']), version=version)
@@ -704,7 +701,7 @@ has the correct number but not the correct version")
         files = parser.extract_attached_files()
 
         # set the files
-        map(record.add_file, files)
+        [record.add_file(f) for f in files]
         logger.info("Found %d attached file(s)", len(files))
 
         # get and set the referencing record doc ids
@@ -735,7 +732,7 @@ has the correct number but not the correct version")
     def filenames(self):
         """Returns a list of filenames associated with this record"""
 
-        return [unicode(dcc_file) for dcc_file in self.files]
+        return [str(dcc_file) for dcc_file in self.files]
 
     def add_file(self, dcc_file):
         """Adds the specified file to the record
@@ -764,12 +761,12 @@ has the correct number but not the correct version")
     def get_refenced_by_titles(self):
         """Returns a list of titles of documents referencing this one"""
 
-        return [unicode(record) for record in self.referenced_by]
+        return [str(record) for record in self.referenced_by]
 
     def get_related_titles(self):
         """Returns a list of titles of documents related to this one"""
 
-        return [unicode(record) for record in self.related]
+        return [str(record) for record in self.related]
 
 class DccFile(object):
     """Represents a file attached to a DCC document"""
@@ -885,21 +882,21 @@ class DccJournalRef(object):
     def __init__(self, journal=None, volume=None, page=None, citation=None, \
     url=None):
         if journal is not None:
-            journal = unicode(journal)
+            journal = str(journal)
 
         if volume is not None:
             volume = int(volume)
 
         if page is not None:
             # NOTE: page is not necessarily numeric
-            page = unicode(page)
+            page = str(page)
 
         if citation is not None:
-            citation = unicode(citation)
+            citation = str(citation)
 
         if url is not None:
             # FIXME: validate URL
-            url = unicode(url)
+            url = str(url)
 
         self.journal = journal
         self.volume = volume

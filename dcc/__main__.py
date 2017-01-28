@@ -1,18 +1,14 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import print_function
+
 import os
 import io
 import sys
-import shutil
 import logging
 import argparse
 import textwrap
-import cookielib
-import subprocess
 import collections
 
-from .comms import HttpFetcher
 from .record import DccArchive, DccNumber
 from .patterns import DccNumberNotFoundException, NotLoggedInException, \
 UnauthorisedAccessException
@@ -80,38 +76,6 @@ AUTHOR
 def _get_cookie_path():
     return '/tmp/ecpcookie.u{}'.format(os.getuid())
 
-def _load_dcc_archive():
-    # this is where the above writes the cookie.  not a very friendly
-    # interface
-    cookie_path = _get_cookie_path()
-    if not os.path.exists(cookie_path):
-        # load ECP cookies
-        cmd = ['ecp-cookie-init', '-k', '-q', '-n', 'https://dcc.ligo.org/dcc/']
-        out = subprocess.check_output(cmd)
-    # FIXME: not sure why i couldn't just load the cookie file via
-    # cookielib, but for some reason it won't load
-    # https://docs.python.org/2/library/cookielib.html
-    #
-    # cj = cookielib.FileCookieJar(cookie_path)
-    # cj.load()
-    # cdata = cj._cookies['dcc.ligo.org']['/']
-    #
-    # stupid manual extraction
-    with open(cookie_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            if line[0] in ['#', '', ' ']:
-                continue
-            data = line.split()
-            if data[0] == 'dcc.ligo.org':
-                cookie = '{}={}'.format(data[5], data[6])
-                break
-    fetcher = HttpFetcher(cookie)
-    archive = DccArchive(fetcher=fetcher)
-    return archive
-
 def enable_verbose_logs():
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter('%(message)s'))
@@ -164,17 +128,17 @@ class View(Cmd):
         if args.verbose:
             enable_verbose_logs()
 
-        archive = _load_dcc_archive()
+        archive = DccArchive()
         record = fetch_dcc_record(archive, args.dccid)
 
-        print(u'number: {}'.format(record.dcc_number))
-        print(u'title: {}'.format(record.title))
-        print(u'modified: {}'.format(record.contents_revision_date))
+        print('number: {}'.format(record.dcc_number))
+        print('title: {}'.format(record.title))
+        print('modified: {}'.format(record.contents_revision_date))
         print('authors:')
         for a in record.authors:
             print('  {}'.format(a.name.strip()))
-        print(u'abstract: {}'.format(record.abstract))
-        print(u'keywords: {}'.format(", ".join(record.keywords)))
+        print('abstract: {}'.format(record.abstract))
+        print('keywords: {}'.format(", ".join(record.keywords)))
         print('files:')
         for i,f in enumerate(record.files):
             print('  {} {}'.format(i, f))
@@ -212,7 +176,7 @@ class Fetch(Cmd):
         if args.verbose:
             enable_verbose_logs()
 
-        archive = _load_dcc_archive()
+        archive = DccArchive()
         record = fetch_dcc_record(archive, args.dccid)
 
         try:
@@ -245,7 +209,7 @@ class Open(Cmd):
 
     def __call__(self, args):
         args = self.parser.parse_args(args)
-        archive = _load_dcc_archive()
+        archive = DccArchive()
         url = archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)
         cmd = ['xdg-open', url]
         subprocess.Popen(cmd)
@@ -319,13 +283,13 @@ def format_commands(man=False):
             if man:
                 fo = func()
                 usage = fo.parser.format_usage()[len('usage: {} '.format(PROG)):].strip()
-                desc = wrapper.fill(u'\n'.join([l.strip() for l in fo.parser.description.splitlines() if l]))
-                f.write(u'  {}  \n'.format(usage))
+                desc = wrapper.fill('\n'.join([l.strip() for l in fo.parser.description.splitlines() if l]))
+                f.write('  {}  \n'.format(usage))
                 f.write(desc+'\n')
-                f.write(u'\n')
+                f.write('\n')
             else:
                 desc = func.__doc__.splitlines()[0]
-                f.write(u'  {:10}{}\n'.format(name, desc))
+                f.write('  {:10}{}\n'.format(name, desc))
         output = f.getvalue()
     return output.rstrip()
 

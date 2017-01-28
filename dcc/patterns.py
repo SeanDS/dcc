@@ -2,7 +2,7 @@
 
 """Pattern matching classes"""
 
-from __future__ import unicode_literals
+
 
 import abc
 import logging
@@ -86,16 +86,16 @@ class DccRecordParser(object):
         return authors
 
     def extract_abstract(self):
-        return unicode(self.docrev.find('abstract').text)
+        return str(self.docrev.find('abstract').text)
 
     def extract_keywords(self):
-        return [unicode(k.text) for k in self.docrev.findall('keyword')]
+        return [str(k.text) for k in self.docrev.findall('keyword')]
 
     def extract_note(self):
-        return unicode(self.docrev.find('note').text)
+        return str(self.docrev.find('note').text)
 
     def extract_publication_info(self):
-        return unicode(self.docrev.find('publicationinfo').text)
+        return str(self.docrev.find('publicationinfo').text)
 
     def extract_journal_reference(self):
         ref = self.docrev.find('reference')
