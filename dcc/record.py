@@ -94,7 +94,15 @@ class DccArchive(object):
             return self.records[self.get_dcc_number_str(dcc_number)]
 
         # fetch remote record
-        record = DccRecord._fetch(self.fetcher, dcc_number)
+        try:
+            record = DccRecord._fetch(self.fetcher, dcc_number)
+        except dcc.patterns.NotLoggedInException:
+            # FIXME: shouldn't have to do this hear.  the archive
+            # shouldn't have to know anything about the transport
+            # mechanisms
+            self.logger.info("Authentication failure, retrieving new cookie...")
+            self.fetcher.ecp_cookie_init()
+            record = DccRecord._fetch(self.fetcher, dcc_number)
 
         # download the files associated with the record, if requested
         if download_files:
