@@ -15,10 +15,6 @@ from .comms import KerberosError
 from .patterns import DccNumberNotFoundException, NotLoggedInException, \
 UnauthorisedAccessException
 
-logging.basicConfig(format='%(message)s',
-                    level=os.getenv('LOG_LEVEL', 'INFO').upper(),
-                    )
-
 ##################################################
 # The following is a custom subcommand CLI implementation based on
 # callable objects.  Each command is represented by Cmd object, whose
@@ -68,8 +64,8 @@ COMMANDS
 {{cmds}}
 
 AUTHOR
-    Jameson Graef Rollins <jameson.rollins@ligo.org>
     Sean Leavey <sean.leavey@ligo.org>
+    Jameson Graef Rollins <jameson.rollins@ligo.org>
 """.format(prog=PROG,
            desc=DESC,
            synopsis=SYNOPSIS,
