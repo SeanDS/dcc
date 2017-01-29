@@ -149,6 +149,8 @@ class View(Cmd):
             print('  {}'.format(a.name.strip()))
         print('abstract:')
         print(wrapper.fill(html2text.html2text(record.abstract)))
+        print('note:')
+        print(wrapper.fill(html2text.html2text(record.note)))
         print('keywords: {}'.format(", ".join(record.keywords)))
         print('files:')
         for i,f in enumerate(record.files):
