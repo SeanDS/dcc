@@ -11,6 +11,7 @@ import subprocess
 import collections
 
 from .record import DccArchive, DccNumber
+from .comms import KerberosError
 from .patterns import DccNumberNotFoundException, NotLoggedInException, \
 UnauthorisedAccessException
 
@@ -74,9 +75,6 @@ AUTHOR
            synopsis=SYNOPSIS,
            ).strip()
 
-def _get_cookie_path():
-    return '/tmp/ecpcookie.u{}'.format(os.getuid())
-
 def enable_verbose_logs():
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter('%(message)s'))
@@ -89,9 +87,8 @@ def fetch_dcc_record(archive, dccid):
         return archive.fetch_record(dccid)
     except DccNumberNotFoundException:
         sys.exit("Could not find DCC document '{}'.".format(args.dccid))
-    except NotLoggedInException:
-        sys.exit("You are not logged in, or your authentication cookie is \
-invalid; see `{prog} {cmd}` for more information".format(prog=PROG, cmd=Help.cmd))
+    except KerberosError:
+        sys.exit("You are not logged in.  Use 'kinit' to initialize kerberos credential.")
     except UnauthorisedAccessException:
         sys.exit("You are not authorised to view this document")
 
@@ -215,31 +212,6 @@ class Open(Cmd):
         cmd = ['xdg-open', url]
         subprocess.run(cmd, check=True)
 
-class Reset(Cmd):
-    """Reset authentication.
-
-    Deletes the cookie associated with the user's session.
-    """
-
-    cmd = 'reset'
-
-    def __init__(self):
-        Cmd.__init__(self)
-
-    def __call__(self, args):
-        # parse arguments (needed to allow -h flag)
-        args = self.parser.parse_args(args)
-
-        cookie_path = _get_cookie_path()
-
-        if not os.path.exists(cookie_path):
-            sys.exit("No existing session detected")
-
-        # delete cookie
-        os.remove(cookie_path)
-
-        print("Authentication data reset")
-
 class Help(Cmd):
     """Print manpage or command help (also '-h' after command).
 
@@ -261,7 +233,6 @@ CMDS = collections.OrderedDict([
     ('view', View),
     ('fetch', Fetch),
     ('open', Open),
-    ('reset', Reset),
     ('help', Help),
     ])
 
