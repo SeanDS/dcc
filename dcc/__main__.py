@@ -8,6 +8,7 @@ import logging
 import argparse
 import textwrap
 import subprocess
+import html2text
 import collections
 
 from .record import DccArchive, DccNumber
@@ -147,7 +148,7 @@ class View(Cmd):
         for a in record.authors:
             print('  {}'.format(a.name.strip()))
         print('abstract:')
-        print(wrapper.fill(record.abstract))
+        print(wrapper.fill(html2text.html2text(record.abstract)))
         print('keywords: {}'.format(", ".join(record.keywords)))
         print('files:')
         for i,f in enumerate(record.files):
