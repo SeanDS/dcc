@@ -109,8 +109,8 @@ class View(Cmd):
     """View entry metadata.
 
     If no field is specified, the full entry will be printed to
-    stdout.  If a field is specifed, the data from just that field
-    will be printed.
+    stdout. If a field is specifed, the data from just that field will
+    be printed.
 
     """
     cmd = 'view'
