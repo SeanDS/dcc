@@ -257,7 +257,7 @@ class ECPCookieJar(http.cookiejar.MozillaCookieJar):
 
         magic = f.readline()
         if not self.magic_re.search(magic):
-            raise LoadError(
+            raise http.cookiejar.LoadError(
                 "%r does not look like a Netscape format cookies file" %
                 filename)
 
