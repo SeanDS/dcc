@@ -14,8 +14,6 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import http.cookiejar
-import dcc.record
-import dcc.patterns
 
 class Fetcher(object, metaclass=abc.ABCMeta):
     """Represents a collection of tools to communicate with the DCC server"""
