@@ -88,6 +88,10 @@ class HttpFetcher(Fetcher):
     # protocol
     protocol = "https"
 
+    # ecp cookie file
+    # FIXME: should we use a special cookie file for this app?
+    ecp_cookie_path = os.getenv('ECP_COOKIE_FILE', '/tmp/ecpcookie.u{}'.format(os.getuid()))
+
     # download chunk size
     chunk_size = 8192
 
@@ -133,6 +137,29 @@ class HttpFetcher(Fetcher):
 
         return self._build_dcc_url("cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid))
 
+    def ecp_cookie_init(self):
+        """Execute ecp-cookie-init to fetch a new session cookie"""
+        # This is meant for debugging authentication, so that an
+        # expired cookie can be provided and it won't be overwritten.
+        if os.getenv('ECP_COOKIE_FILE'):
+            return
+        dcc_url = self._build_dcc_url('dcc')
+        self.logger.info("Fetching cookies for: %s", dcc_url)
+        cmd = ['ecp-cookie-init', '-k', '-q', '-n',
+               '-c', self.ecp_cookie_path,
+               dcc_url]
+        self.logger.debug(' '.join(cmd))
+        ecp_ret = subprocess.run(cmd,
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        if ecp_ret.returncode != 0:
+            klist_ret = subprocess.run(['klist'],
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+            if klist_ret.returncode != 0:
+                raise KerberosError()
+            else:
+                ecp_ret.check_returncode()
 
     def _get_url_contents(self, url):
         """Gets the contents at the specified URL
@@ -140,24 +167,13 @@ class HttpFetcher(Fetcher):
         :param url: URL to retrieve
         """
 
-        # FIXME: don't use hard-coded DCC URL
-        dcc_url = 'https://dcc.ligo.org/dcc'
-
-        # cookie file
-        cookie_path = '/tmp/ecpcookie.u{}'.format(os.getuid())
-
-        if os.path.exists(cookie_path):
-            self.logger.info("Found cookie file: %s", cookie_path)
+        if os.path.exists(self.ecp_cookie_path):
+            self.logger.info("Found cookie file: %s", self.ecp_cookie_path)
         else:
-            # load ECP cookies
-
-            self.logger.info("Fetching cookies from %s", dcc_url)
-
-            cmd = ['ecp-cookie-init', '-k', '-q', '-n', dcc_url]
-            subprocess.check_output(cmd)
+            self.ecp_cookie_init()
 
         # create cookie manager and fetch ecp cookies
-        cookie_jar = ECPCookieJar(cookie_path)
+        cookie_jar = ECPCookieJar(self.ecp_cookie_path)
 
         # load from the file
         # NOTE: ignore_discard must be true otherwise the session cookie is not loaded
@@ -308,3 +324,7 @@ class ECPCookieJar(http.cookiejar.MozillaCookieJar):
             raise http.cookiejar.LoadError(\
                             "invalid Netscape format cookies file %r: %r" %
                             (filename, line))
+
+class KerberosError(Exception):
+    """Exception for missing Kerberos credentials"""
+    pass
