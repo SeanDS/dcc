@@ -7,6 +7,7 @@ import sys
 import logging
 import argparse
 import textwrap
+import subprocess
 import collections
 
 from .record import DccArchive, DccNumber
@@ -212,7 +213,7 @@ class Open(Cmd):
         archive = DccArchive()
         url = archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)
         cmd = ['xdg-open', url]
-        subprocess.Popen(cmd)
+        subprocess.run(cmd, check=True)
 
 class Reset(Cmd):
     """Reset authentication.
