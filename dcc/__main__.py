@@ -96,11 +96,18 @@ class Cmd(object):
     """base class for commands"""
     cmd = ''
     def __init__(self):
+        """Initialize argument parser"""
         self.parser = argparse.ArgumentParser(
             prog='{} {}'.format(PROG, self.cmd),
             description=self.__doc__.strip(),
             # formatter_class=argparse.RawDescriptionHelpFormatter,
         )
+    def parse_args(self, args):
+        """Parse arguments and returned ArgumentParser Namespace object"""
+        return self.parser.parse_args(args)
+    def __call__(self, args):
+        """Take Namespace object as input and execute command"""
+        pass
 
 class View(Cmd):
     """View entry metadata.
@@ -121,8 +128,6 @@ class View(Cmd):
         #                          help="document field")
 
     def __call__(self, args):
-        args = self.parser.parse_args(args)
-
         if args.verbose:
             enable_verbose_logs()
 
@@ -169,8 +174,6 @@ class Fetch(Cmd):
                                  help="enable verbose output")
 
     def __call__(self, args):
-        args = self.parser.parse_args(args)
-
         if args.verbose:
             enable_verbose_logs()
 
@@ -223,9 +226,8 @@ class Help(Cmd):
                                  help="command")
 
     def __call__(self, args):
-        args = self.parser.parse_args(args)
         if args.cmd:
-            get_func(args.cmd)()(['-h'])
+            get_func(args.cmd).parser.print_help()
         else:
             print(MANPAGE.format(cmds=format_commands(man=True)))
 
@@ -269,7 +271,7 @@ def get_func(cmd):
     if cmd in ALIAS:
         cmd = ALIAS[cmd]
     try:
-        return CMDS[cmd]
+        return CMDS[cmd]()
     except KeyError:
         print('Unknown command:', cmd, file=sys.stderr)
         print("See 'help' for usage.", file=sys.stderr)
@@ -285,7 +287,7 @@ def main():
     cmd = sys.argv[1]
     args = sys.argv[2:]
     func = get_func(cmd)
-    func()(args)
+    func(func.parse_args(args))
 
 ##################################################
 
