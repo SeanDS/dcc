@@ -130,13 +130,24 @@ class View(Cmd):
         archive = DccArchive()
         record = fetch_dcc_record(archive, args.dccid)
 
+        # wrapper for outputting text paragraphs (abstract, note,
+        # etc.)
+        __, width = subprocess.check_output(['stty', 'size']).split()
+        wrapper = textwrap.TextWrapper(
+            width=int(width),
+            initial_indent='  ',
+            subsequent_indent='  ',
+            )
+
         print('number: {}'.format(record.dcc_number))
+        print('url: {}'.format(archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)))
         print('title: {}'.format(record.title))
         print('modified: {}'.format(record.contents_revision_date))
         print('authors:')
         for a in record.authors:
             print('  {}'.format(a.name.strip()))
-        print('abstract: {}'.format(record.abstract))
+        print('abstract:')
+        print(wrapper.fill(record.abstract))
         print('keywords: {}'.format(", ".join(record.keywords)))
         print('files:')
         for i,f in enumerate(record.files):
