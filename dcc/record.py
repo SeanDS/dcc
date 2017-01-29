@@ -459,7 +459,7 @@ class DccNumber(object):
 
         # version 0 should end "x0", otherwise "v1" etc.
         if not self.has_version():
-            return "-v?"
+            return ""
         elif self.version is 0:
             return "-x0"
         else:
@@ -554,7 +554,7 @@ class DccDocId(object):
         # get version string if requested
         if version:
             if self.version is None:
-                version_string = "-?"
+                version_string = ""
             else:
                 version_string = "-{:d}".format(self.version)
 
