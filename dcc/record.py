@@ -46,6 +46,11 @@ class DccArchive(object):
         self.records = {}
         self.docids = {}
 
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
+
     def __str__(self):
         """String representation of the archive"""
 
@@ -270,6 +275,11 @@ class DccAuthor(object):
         except:
             self.uid = None
 
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
+
     def __str__(self):
         """String representation of this author"""
 
@@ -336,7 +346,12 @@ class DccNumber(object):
         # create logger
         self.logger = logging.getLogger("number")
 
-        if numeric is None:
+        if isinstance(first_id, DccNumber):
+            # copy constructor
+            category = str(first_id['category'])
+            numeric = str(first_id['numeric'])
+            version = int(first_id['version'])
+        elif numeric is None:
             # full number specified, so check it's long enough
             if len(first_id) < 2:
                 raise ValueError("Invalid DCC number; should be of the form \"T0123456\"")
@@ -394,6 +409,11 @@ class DccNumber(object):
         self.category = category
         self.numeric = numeric
         self.version = version
+
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
 
     @classmethod
     def is_category_letter(cls, letter):
@@ -542,6 +562,11 @@ class DccDocId(object):
         self.docid = int(docid)
         self.version = version
 
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
+
     def string_repr(self, version=True):
         """String representation of the document id, with optional version number
 
@@ -624,6 +649,11 @@ class DccRecord(object):
         self.files = []
         self.referenced_by = []
         self.related = []
+
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
 
     def __str__(self):
         """String representation of this DCC record"""
@@ -798,6 +828,11 @@ class DccFile(object):
         self.data = None
         self.local_path = None
 
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
+
     def __str__(self):
         """String representation of this DCC file"""
 
@@ -911,6 +946,11 @@ class DccJournalRef(object):
         self.page = page
         self.citation = citation
         self.url = url
+
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.__dict__[key]
 
     def __str__(self):
         """String representation of this journal reference"""
