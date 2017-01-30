@@ -17,6 +17,7 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/)
   - [LSCSoft](https://www.lsc-group.phys.uwm.edu/daswg/docs/howto/lscsoft-install.html)
   - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
   - [pytz](https://pypi.python.org/pypi/pytz)
+  - html2text
   - (Optional) [graphviz](https://pypi.python.org/pypi/graphviz) for Python
 
 LIGO.ORG credentials are given to members of the interferometric gravitational
@@ -39,6 +40,8 @@ kinit albert.einstein@LIGO.ORG
 ```
 where `albert.einstein` is your username. Note that the `@LIGO.ORG` realm is
 case sensitive.
+
+Note: you can also revoke your Kerberos token later with `kdestroy`.
 
 ### Command line interpreter
 `dcc-api` has a command line interpreter. In your terminal, type
@@ -155,5 +158,5 @@ logging.getLogger().setLevel(logging.DEBUG)
 ```
 
 ## Credits
-Sean Leavey <sean.leavey@ligo.org>
+Sean Leavey <sean.leavey@ligo.org>  
 Jameson Graef Rollins <jameson.rollins@ligo.org>
