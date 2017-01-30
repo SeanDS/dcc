@@ -56,6 +56,11 @@ class DccArchive(object):
 
         return key in self.__dict__
 
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
+
     def __str__(self):
         """String representation of the archive"""
 
@@ -290,6 +295,11 @@ class DccAuthor(object):
 
         return key in self.__dict__
 
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
+
     def __str__(self):
         """String representation of this author"""
 
@@ -429,6 +439,11 @@ class DccNumber(object):
         """Dict-like presence check"""
 
         return key in self.__dict__
+
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
 
     @classmethod
     def is_category_letter(cls, letter):
@@ -587,6 +602,11 @@ class DccDocId(object):
 
         return key in self.__dict__
 
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
+
     def string_repr(self, version=True):
         """String representation of the document id, with optional version number
 
@@ -679,6 +699,11 @@ class DccRecord(object):
         """Dict-like presence check"""
 
         return key in self.__dict__
+
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
 
     def __str__(self):
         """String representation of this DCC record"""
@@ -863,6 +888,11 @@ class DccFile(object):
 
         return key in self.__dict__
 
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
+
     def __str__(self):
         """String representation of this DCC file"""
 
@@ -986,6 +1016,11 @@ class DccJournalRef(object):
         """Dict-like presence check"""
 
         return key in self.__dict__
+
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return self.__dict__
 
     def __str__(self):
         """String representation of this journal reference"""
