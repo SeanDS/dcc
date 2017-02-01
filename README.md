@@ -13,8 +13,8 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/)
 
   - LIGO.org credentials (`albert.einstein`)
   - Python 3.5+
-  - Kerberos
-  - [LSCSoft](https://www.lsc-group.phys.uwm.edu/daswg/docs/howto/lscsoft-install.html)
+  - Kerberos (`krb5-user`)
+  - `ecp-cookie-init` from [LIGO Data Grid](https://www.lsc-group.phys.uwm.edu/lscdatagrid/doc/installclient.html)
   - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
   - [pytz](https://pypi.python.org/pypi/pytz)
   - html2text
