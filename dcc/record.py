@@ -268,18 +268,6 @@ class DccArchive(DccObject):
         # download the file
         dcc_file._download(self.fetcher)
 
-    def get_author_dcc_numbers(self, author):
-        """Fetches the DCC numbers associated with the author
-
-        Note that this is limited by the DCC's limit on returned records
-        (default 500).
-
-        :param author: author to fetch numbers for
-        """
-
-        # return the author's numbers
-        return author._get_dcc_numbers(self.fetcher)
-
     @staticmethod
     def get_dcc_number_str(dcc_number, version=True):
         """Creates a string representing the specified DCC number, optionally with version
@@ -321,27 +309,6 @@ class DccAuthor(DccObject):
         """Representation of this author"""
 
         return self.__str__()
-
-    def _get_dcc_numbers(self, fetcher):
-        """Fetches a list of DCC numbers from this author
-
-        Note that this may not be complete due to the DCC's limit on the number
-        of documents displayed on the author's page (default 500).
-
-        :param fetcher: fetcher object to use
-        """
-
-        # download author page
-        author_page = fetcher.fetch_author_page(self)
-
-        # parse the page
-        parser = dcc.patterns.DccAuthorPageParser(author_page)
-
-        # check that we have a valid author page
-        parser.validate()
-
-        # get the list of DCC numbers
-        return parser.extract_dcc_numbers()
 
 class DccNumber(DccObject):
     """Represents a DCC number, including category and numeric identifier"""

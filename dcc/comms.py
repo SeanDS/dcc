@@ -41,15 +41,6 @@ class Fetcher(object, metaclass=abc.ABCMeta):
         # create URL, fetch it and return it
         return self._get_url_contents(self._build_dcc_record_url(dcc_number))
 
-    def fetch_author_page(self, author):
-        """Fetches the page of the author specified
-
-        :param author: author to fetch page for
-        """
-
-        # create URL, fetch it then return it
-        return self._get_url_contents(self._build_dcc_author_url(author))
-
     def fetch_file_data(self, dcc_file):
         """Fetches the file data associated with the specified file
 
