@@ -42,9 +42,8 @@ class DccArchive(object):
         # set the progress hook
         self.fetcher.progress_hook = progress_hook
 
-        # create empty archive dicts
+        # create empty archive dict
         self.records = {}
-        self.docids = {}
 
     def __getitem__(self, key):
         """Dict-like access for fields"""
