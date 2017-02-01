@@ -219,7 +219,6 @@ class Open(Cmd):
                                  help="DCC document number")
 
     def __call__(self, args):
-        args = self.parser.parse_args(args)
         archive = DccArchive()
         url = archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)
         cmd = ['xdg-open', url]
