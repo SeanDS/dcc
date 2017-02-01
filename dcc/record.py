@@ -6,14 +6,39 @@
 
 import sys
 import os
+import abc
 import logging
 import subprocess
 import tempfile
 import dcc.comms
 import dcc.patterns
 
-class DccArchive(object):
+class DccObject(object, metaclass=abc.ABCMeta):
+    """Abstract representation of a DCC object"""
+
+    """Fields with dict-style access"""
+    _fields = []
+
+    def __getitem__(self, key):
+        """Dict-like access for fields"""
+
+        return self.items()[key]
+
+    def __contains__(self, key):
+        """Dict-like presence check"""
+
+        return key in self.items()
+
+    def items(self):
+        """Object field names and values as a dict"""
+
+        return {k: self.__dict__[k] for k in self._fields}
+
+class DccArchive(DccObject):
     """Represents a collection of DCC documents"""
+
+    """Fields with dict-style access"""
+    _fields = ['records']
 
     def __init__(self, fetcher='http', progress_hook=None):
         """Instantiates a DCC archive
@@ -48,17 +73,17 @@ class DccArchive(object):
     def __getitem__(self, key):
         """Dict-like access for fields"""
 
-        return self.__dict__[key]
+        return self.items()[key]
 
     def __contains__(self, key):
         """Dict-like presence check"""
 
-        return key in self.__dict__
+        return key in self.items()
 
     def items(self):
         """Object field names and values as a dict"""
 
-        return self.__dict__
+        return {k: self.__dict__[k] for k in self._fields}
 
     def __str__(self):
         """String representation of the archive"""
@@ -265,8 +290,11 @@ class DccArchive(object):
         # use the DCC number's string representation method
         return dcc_number.string_repr(version=version)
 
-class DccAuthor(object):
+class DccAuthor(DccObject):
     """Represents a DCC author"""
+
+    """Fields with dict-style access"""
+    _fields = ['name', 'uid']
 
     def __init__(self, name, uid=None):
         """Instantiates a DCC author
@@ -283,21 +311,6 @@ class DccAuthor(object):
             self.uid = int(uid)
         except:
             self.uid = None
-
-    def __getitem__(self, key):
-        """Dict-like access for fields"""
-
-        return self.__dict__[key]
-
-    def __contains__(self, key):
-        """Dict-like presence check"""
-
-        return key in self.__dict__
-
-    def items(self):
-        """Object field names and values as a dict"""
-
-        return self.__dict__
 
     def __str__(self):
         """String representation of this author"""
@@ -330,8 +343,11 @@ class DccAuthor(object):
         # get the list of DCC numbers
         return parser.extract_dcc_numbers()
 
-class DccNumber(object):
+class DccNumber(DccObject):
     """Represents a DCC number, including category and numeric identifier"""
+
+    """Fields with dict-style access"""
+    _fields = ['category', 'numeric', 'version']
 
     # DCC document type designators and descriptions
     document_type_letters = {
@@ -428,21 +444,6 @@ class DccNumber(object):
         self.category = category
         self.numeric = numeric
         self.version = version
-
-    def __getitem__(self, key):
-        """Dict-like access for fields"""
-
-        return self.__dict__[key]
-
-    def __contains__(self, key):
-        """Dict-like presence check"""
-
-        return key in self.__dict__
-
-    def items(self):
-        """Object field names and values as a dict"""
-
-        return self.__dict__
 
     @classmethod
     def is_category_letter(cls, letter):
@@ -563,8 +564,11 @@ class DccNumber(object):
 
         return not self.__eq__(other_dcc_number)
 
-class DccDocId(object):
+class DccDocId(DccObject):
     """Represents a DCC document id"""
+
+    """Fields with dict-style access"""
+    _fields = ['docid', 'version']
 
     def __init__(self, docid, version=None):
         """Instantiates a DccDocId object
@@ -590,21 +594,6 @@ class DccDocId(object):
         # set everything
         self.docid = int(docid)
         self.version = version
-
-    def __getitem__(self, key):
-        """Dict-like access for fields"""
-
-        return self.__dict__[key]
-
-    def __contains__(self, key):
-        """Dict-like presence check"""
-
-        return key in self.__dict__
-
-    def items(self):
-        """Object field names and values as a dict"""
-
-        return self.__dict__
 
     def string_repr(self, version=True):
         """String representation of the document id, with optional version number
@@ -668,8 +657,14 @@ class DccDocId(object):
 
         return cls(int(field.attrib['docid']), version=version)
 
-class DccRecord(object):
+class DccRecord(DccObject):
     """Represents a DCC record"""
+
+    """Fields with dict-style access"""
+    _fields = ['dcc_number', 'docid', 'title', 'authors', 'abstract', \
+    'keywords', 'note', 'publication_info', 'journal_reference', \
+    'other_version_numbers', 'creation_date', 'contents_revision_date', \
+    'metadata_revision_date', 'files', 'referenced_by', 'related']
 
     def __init__(self, dcc_number):
         """Instantiates a DCC record
@@ -688,21 +683,6 @@ class DccRecord(object):
         self.files = []
         self.referenced_by = []
         self.related = []
-
-    def __getitem__(self, key):
-        """Dict-like access for fields"""
-
-        return self.__dict__[key]
-
-    def __contains__(self, key):
-        """Dict-like presence check"""
-
-        return key in self.__dict__
-
-    def items(self):
-        """Object field names and values as a dict"""
-
-        return self.__dict__
 
     def __str__(self):
         """String representation of this DCC record"""
@@ -855,8 +835,11 @@ has the correct number but not the correct version")
 
         return [str(record) for record in self.related]
 
-class DccFile(object):
+class DccFile(DccObject):
     """Represents a file attached to a DCC document"""
+
+    """Fields with dict-style access"""
+    _fields = ['title', 'filename', 'url', 'local_path']
 
     def __init__(self, title, filename, url):
         """Instantiates a DCC file object
@@ -876,21 +859,6 @@ class DccFile(object):
         # defaults
         self.data = None
         self.local_path = None
-
-    def __getitem__(self, key):
-        """Dict-like access for fields"""
-
-        return self.__dict__[key]
-
-    def __contains__(self, key):
-        """Dict-like presence check"""
-
-        return key in self.__dict__
-
-    def items(self):
-        """Object field names and values as a dict"""
-
-        return self.__dict__
 
     def __str__(self):
         """String representation of this DCC file"""
@@ -978,8 +946,11 @@ class DccFile(object):
         # set the (string) path
         self.local_path = tmp_file.name
 
-class DccJournalRef(object):
+class DccJournalRef(DccObject):
     """Represents a journal reference attached to a DCC document"""
+
+    """Fields with dict-style access"""
+    _fields = ['journal', 'volume', 'page', 'citation', 'url']
 
     def __init__(self, journal=None, volume=None, page=None, citation=None, \
     url=None):
@@ -1005,21 +976,6 @@ class DccJournalRef(object):
         self.page = page
         self.citation = citation
         self.url = url
-
-    def __getitem__(self, key):
-        """Dict-like access for fields"""
-
-        return self.__dict__[key]
-
-    def __contains__(self, key):
-        """Dict-like presence check"""
-
-        return key in self.__dict__
-
-    def items(self):
-        """Object field names and values as a dict"""
-
-        return self.__dict__
 
     def __str__(self):
         """String representation of this journal reference"""
