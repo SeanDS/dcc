@@ -757,10 +757,10 @@ has the correct number but not the correct version")
     def version_nums(self):
         """Returns a list of versions associated with this record"""
 
-        versions_list = self.other_version_numbers
-        versions_list.append(self.dcc_number.version)
+        versions_list = set(self.other_version_numbers)
+        versions_list.add(self.dcc_number.version)
 
-        return versions_list
+        return list(versions_list)
 
     @property
     def filenames(self):
@@ -789,8 +789,8 @@ has the correct number but not the correct version")
         # check if this is greater than the current version
         if max_other_version > self.dcc_number.version:
             return max_other_version
-        else:
-            return self.dcc_number.version
+
+        return self.dcc_number.version
 
     def get_refenced_by_titles(self):
         """Returns a list of titles of documents referencing this one"""
