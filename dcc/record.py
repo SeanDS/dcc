@@ -718,8 +718,15 @@ has the correct number but not the correct version")
         record.publication_info = parser.extract_publication_info()
         record.journal_reference = parser.extract_journal_reference()
 
-        # get other version numbers
-        record.other_version_numbers = parser.extract_other_version_numbers()
+        # get unique set of other version numbers
+        other_versions = set(parser.extract_other_version_numbers())
+        # remove current version if present
+        try:
+            other_versions.remove(record.dcc_number.version)
+        except KeyError:
+            pass
+        # set other versions
+        record.other_version_numbers = list(other_versions)
         logger.info("Found %d other version number(s)", len(record.other_version_numbers))
 
         # get the revision dates
