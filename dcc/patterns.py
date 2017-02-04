@@ -120,7 +120,7 @@ class DccRecordParser(object):
         return ref
 
     def extract_other_version_numbers(self):
-        return [r.attrib['version'] for r in self.docrev.find('otherversions')]
+        return [int(r.attrib['version']) for r in self.docrev.find('otherversions')]
 
     def extract_revision_dates(self):
         # DCC dates use the Pacific timezone
