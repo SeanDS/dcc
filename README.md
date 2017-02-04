@@ -92,45 +92,48 @@ record = archive.fetch_record("P150914", 14) # equivalent to P150914-v14
 You may also specify the optional argument to download the files associated
 with the record:
 ```python
-record = archive.fetch_record("P150914-v14", download_files=True)
+record = archive.fetch_record("P150914-v13", download_files=True)
 ```
 When this is set, the files associated with the version specified will be
 downloaded.
 
 ### Extracting useful information
-You can then print some useful information:
+Most of the record's information can be accessed like a dictionary:
 ```python
-# DCC number
-print record.dcc_number
+# prints "P150914-v13"
+print(record["dcc_number"])
 
-# document title
-print record.title
+# prints "Observation of Gravitational Waves from a Binary Black Hole Merger"
+print(record["title"])
 
-# latest version number of this record
-print record.latest_version_num
+# prints "2016-02-02 05:59:52-08:00"
+print(record['contents_revision_date'])
 
-# list of version numbers associated with this record
-print record.version_nums
+# prints list of attached files
+print(record['files'])
+```
 
-# useful dates (as Python date objects)
-print record.creation_date
-print record.metadata_revision_date
-print record.contents_revision_date
+Some other information can be accessed through properties:
+```python
+# prints "13"
+print(record.dcc_number.version)
 
-# list of names of files attached to this document revision
-print record.filenames
+# prints "14"
+print(record.latest_version_num)
+
+# prints "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]"
+print(record.version_nums)
+
+# prints "False"
+print(record.is_latest_version())
 ```
 
 ### Opening files
 If you specified the `download_files=True` flag as part of the `fetch_record`
-constructor, then you will be able to access the files using `record.files`:
+constructor, then you will be able to view the attached files. You can extract
+the file objects by calling the appropriate index:
 ```python
-# list of files attached to this document revision
-print record.files
-```
-You can extract the files by calling the appropriate index:
-```python
-# get first file (usually the main attachment)
+# gets first file (usually the main attachment)
 f = record.files[0]
 ```
 
@@ -153,6 +156,7 @@ top of your script:
 ```python
 import logging
 
+# create debug message logger on stdout
 logging.getLogger().addHandler(logging.StreamHandler())
 logging.getLogger().setLevel(logging.DEBUG)
 ```
