@@ -799,6 +799,9 @@ has the correct number but not the correct version")
 
         return self.dcc_number.version
 
+    def is_latest_version(self):
+        return self.dcc_number.version is self.latest_version_num
+
     def get_refenced_by_titles(self):
         """Returns a list of titles of documents referencing this one"""
 
