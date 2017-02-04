@@ -70,6 +70,9 @@ class DccArchive(DccObject):
         # create empty archive dict
         self.records = {}
 
+        # default files downloaded flag
+        self.files_downloaded = False
+
     def __getitem__(self, key):
         """Dict-like access for fields"""
 
@@ -129,26 +132,26 @@ class DccArchive(DccObject):
         # retrieved cached version of record if it exists, and if the
         # identifier was specified with a version
         if not force and dcc_number.has_version() and self.has_record(dcc_number):
-            # return cached version
-            return self.records[self.get_dcc_number_str(dcc_number)]
+            # get record from cache
+            record = self.records[self.get_dcc_number_str(dcc_number)]
+        else:
+            # fetch remote record
+            try:
+                record = DccRecord._fetch(self.fetcher, dcc_number)
+            except dcc.patterns.NotLoggedInException:
+                # FIXME: shouldn't have to do this hear.  the archive
+                # shouldn't have to know anything about the transport
+                # mechanisms
+                self.logger.info("Authentication failure, retrieving new cookie...")
+                self.fetcher.ecp_cookie_init()
+                record = DccRecord._fetch(self.fetcher, dcc_number)
 
-        # fetch remote record
-        try:
-            record = DccRecord._fetch(self.fetcher, dcc_number)
-        except dcc.patterns.NotLoggedInException:
-            # FIXME: shouldn't have to do this hear.  the archive
-            # shouldn't have to know anything about the transport
-            # mechanisms
-            self.logger.info("Authentication failure, retrieving new cookie...")
-            self.fetcher.ecp_cookie_init()
-            record = DccRecord._fetch(self.fetcher, dcc_number)
+            # add record to archive
+            self.add_record(record, overwrite=overwrite)
 
         # download the files associated with the record, if requested
-        if download_files:
+        if download_files and not self.files_downloaded:
             self.download_record_file_data(record)
-
-        # add record to archive
-        self.add_record(record, overwrite=overwrite)
 
         # return the record
         return record
@@ -258,6 +261,9 @@ class DccArchive(DccObject):
 
             # increment counter
             current_count += 1
+
+        # set download flag
+        self.files_downloaded = True
 
     def download_file_data(self, dcc_file):
         """Fetches the files attached to the specified record
