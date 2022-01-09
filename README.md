@@ -8,6 +8,7 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/)
  - Downloading of records
  - Parsing of record information, including previous versions
  - Extraction of attachment descriptions and URLs
+ - Modification of record metadata
 
 ## Prerequisites
 
@@ -150,6 +151,17 @@ You can use `graphviz` to generate graphs representing the connections between
 DCC documents, authors and more. There is an example provided in
 `examples/graph.py`.
 
+### Updating metadata
+To update a record's metadata, use the `update_record_metadata` method of `HttpFetcher`:
+```python
+from dcc.comms import HttpFetcher
+from dcc.record import DccNumber
+
+fetcher = HttpFetcher()
+dcc_number = DccNumber("Pxxxxxxx")
+fetcher.update_record_metadata(dcc_number, note="https://doi.org/10.1103/PhysRevLett.yyy.zzzzzz", related="Gxxxxxxx")
+```
+
 ### Logging
 `DCC API` has logging capabilities. To log to `stdout`, just put this at the
 top of your script:
@@ -164,3 +176,4 @@ logging.getLogger().setLevel(logging.DEBUG)
 ## Credits
 Sean Leavey <sean.leavey@ligo.org>  
 Jameson Graef Rollins <jameson.rollins@ligo.org>
+Christopher Wipf
