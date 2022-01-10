@@ -258,6 +258,10 @@ class ECPCookieJar(http.cookiejar.MozillaCookieJar):
                 # last field may be absent, so keep any trailing tab
                 if line.endswith("\n"): line = line[:-1]
 
+                # remove #HttpOnly_ prefix
+                if line.strip().startswith("#HttpOnly_"):
+                    line = line[len("#HttpOnly_"):]
+
                 # skip comments and blank lines XXX what is $ for?
                 if (line.strip().startswith(("#", "$")) or
                     line.strip() == ""):
