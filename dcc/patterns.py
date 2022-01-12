@@ -152,6 +152,49 @@ class DccRecordParser(object):
     def extract_referencing_ids(self):
         return [dcc.record.DccDocId.parse_from_xref(f) for f in self.docrev.findall('xrefby')]
 
+class DccXmlUpdateParser(object):
+    """Represents a parser for DCC XMLUpdate responses"""
+
+    def __init__(self, content):
+        """Instantiates a DccXmlUpdateParser with the provided page content
+
+        :param content: DCC XMLUpdate response HTML
+
+        """
+        self.logger = logging.getLogger("xmlupdate-parser")
+        self.content = content
+
+    def validate(self):
+        # get an HTML navigator object for the response
+        navigator = bs(self.content, "html.parser")
+
+        # accept if the page reports a successful modification
+        if navigator.find(string=re.compile(".*You were successful.*")):
+            return
+
+        # check if we have the login page, specified by the presence of an h3
+        # with specific text
+        if navigator.find("h3", text="Accessing private documents"):
+            raise NotLoggedInException()
+
+        # check if we have the default page (DCC redirects here for all
+        # unrecognised requests)
+        if navigator.find("strong", text="Search for Documents by"):
+            raise UnrecognisedDccRecordException()
+
+        # check if we have the error page
+        if navigator.find("dt", class_="Error"):
+            # we have an error, but what is its message?
+            if navigator.find("dd", text=re.compile(".* is invalid.*")):
+                # record number not valid
+                raise DccNumberNotFoundException()
+            if navigator.find("dd", text=re.compile(".* is not modifiable by user.*")):
+                # unauthorised to update
+                raise UnauthorisedAccessException()
+
+        # unknown error
+        raise UnknownDccErrorException()
+
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
     pass

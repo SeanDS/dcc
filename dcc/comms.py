@@ -50,6 +50,37 @@ class Fetcher(object, metaclass=abc.ABCMeta):
         # fetch and return the data at the file's URL
         return self._get_url_contents(dcc_file.url)
 
+    def update_record_metadata(self, dcc_number, title=None, abstract=None,
+                               keywords=None, note=None, related=None, authors=None):
+        """Updates metadata for the DCC record specified by the provided number
+
+        The version (if any) of the provided DCC number is ignored.  Only the latest
+        version of the record is updated.
+
+        Returns the response of the server to the update request
+
+        :param dcc_number: DCC number to update metadata for
+        :param title: metadata field contents (None to leave unchanged)
+        :param abstract: metadata field contents (None to leave unchanged)
+        :param keywords: metadata field contents (None to leave unchanged)
+        :param note: metadata field contents (None to leave unchanged)
+        :param related: metadata field contents (None to leave unchanged)
+        :param authors: metadata field contents (None to leave unchanged)
+        """
+
+        # build DCC "Bulk Modify" request URL
+        dcc_update_metadata_url = self._build_dcc_url('cgi-bin/private/DocDB/XMLUpdate')
+
+        # prepare form data dict with the requested updates
+        data = self._build_dcc_metadata_form(title=title, abstract=abstract,
+                                             keywords=keywords, note=note,
+                                             related=related, authors=authors)
+        data['DocumentsField'] = dcc_number.string_repr(version=False)
+        data['DocumentChange'] = "Change Latest Version"
+
+        # post form data and return server's response
+        return self._post_url_form_data(dcc_update_metadata_url, data)
+
     @abc.abstractmethod
     def _build_dcc_record_url(self, dcc_number, xml=True):
         """Builds the URL representing the specified DCC number"""
@@ -62,9 +93,39 @@ class Fetcher(object, metaclass=abc.ABCMeta):
 
         pass
 
+    def _build_dcc_metadata_form(self, title=None, abstract=None, keywords=None,
+                                 note=None, related=None, authors=None):
+        """Builds form data representing the specified metadata update"""
+
+        fields = [
+            (title, 'TitleField', 'TitleChange'),
+            (abstract, 'AbstractField', 'AbstractChange'),
+            (keywords, 'KeywordsField', 'KeywordsChange'),
+            (note, 'NotesField', 'NotesChange'),
+            (related, 'RelatedDocumentsField', 'RelatedDocumentsChange'),
+            (authors, 'authormanual', 'AuthorsChange'),
+            ]
+
+        data = dict()
+        for field_data, field_name, field_change_name in fields:
+            if field_data is not None:
+                data[field_name] = field_data
+                data[field_change_name] = 'Replace'
+            else:
+                data[field_name] = ''
+                data[field_change_name] = 'Append'
+
+        return data
+
     @abc.abstractmethod
     def _get_url_contents(self, url):
         """Fetches the specified contents at the specified URL"""
+
+        pass
+
+    @abc.abstractmethod
+    def _post_url_form_data(self, url, data):
+        """Posts the specified form data to the specified URL"""
 
         pass
 
@@ -150,11 +211,8 @@ class HttpFetcher(Fetcher):
             else:
                 ecp_ret.check_returncode()
 
-    def _get_url_contents(self, url):
-        """Gets the contents at the specified URL
-
-        :param url: URL to retrieve
-        """
+    def _build_url_opener(self):
+        """Returns an URL opener with cookies loaded for DCC access"""
 
         if os.path.exists(self.ecp_cookie_path):
             self.logger.info("Found cookie file: %s", self.ecp_cookie_path)
@@ -171,8 +229,17 @@ class HttpFetcher(Fetcher):
         # create cookie processor
         cookie_processor = urllib.request.HTTPCookieProcessor(cookie_jar)
 
-        # create an opener with the cookie processor
-        opener = urllib.request.build_opener(cookie_processor)
+        # return an opener with the cookie processor
+        return urllib.request.build_opener(cookie_processor)
+
+    def _get_url_contents(self, url):
+        """Gets the contents at the specified URL
+
+        :param url: URL to retrieve
+        """
+
+        # obtain cookies for DCC access
+        opener = self._build_url_opener()
 
         self.logger.info("Fetching contents at URL %s", url)
 
@@ -221,6 +288,29 @@ class HttpFetcher(Fetcher):
 
         # join up the bytes into a string and return
         return b"".join(data)
+
+    def _post_url_form_data(self, url, data):
+        """Posts the specified form data to the specified URL
+
+        Returns the response of the server
+
+        :param url: URL to post
+        :param data: dict containing form data
+        """
+
+        # obtain cookies for DCC access
+        opener = self._build_url_opener()
+
+        self.logger.info("Posting form data to URL %s", url)
+
+        # convert dict to URL-encoded bytes
+        data = urllib.parse.urlencode(data).encode()
+
+        # POST request is used when form data is supplied
+        req = urllib.request.Request(url, data)
+
+        # read and return the server's response
+        return opener.open(req).read()
 
 class ECPCookieJar(http.cookiejar.MozillaCookieJar):
     """Alternate cookiejar parser that replaces expiry date of 0 with an empty \

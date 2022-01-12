@@ -11,10 +11,10 @@ import subprocess
 import html2text
 import collections
 
-from .record import DccArchive, DccNumber
+from .record import DccArchive, DccNumber, InvalidDccNumberException
 from .comms import KerberosError
-from .patterns import DccNumberNotFoundException, NotLoggedInException, \
-UnauthorisedAccessException
+from .patterns import DccXmlUpdateParser, DccNumberNotFoundException, \
+    NotLoggedInException, UnauthorisedAccessException
 
 ##################################################
 # The following is a custom subcommand CLI implementation based on
@@ -83,11 +83,28 @@ def fetch_dcc_record(archive, dccid):
     try:
         return archive.fetch_record(dccid)
     except DccNumberNotFoundException:
-        sys.exit("Could not find DCC document '{}'.".format(args.dccid))
+        sys.exit("Could not find DCC document '{}'.".format(dccid))
     except KerberosError:
         sys.exit("You are not logged in.  Use 'kinit' to initialize kerberos credential.")
     except UnauthorisedAccessException:
         sys.exit("You are not authorised to view this document")
+
+def update_dcc_record_metadata(archive, dccid, title=None, abstract=None, keywords=None,
+                               note=None, related=None, authors=None):
+    try:
+        dccid = DccNumber(dccid)
+        resp = archive.fetcher.update_record_metadata(dccid,
+                                                      title=title, abstract=abstract,
+                                                      keywords=keywords, note=note,
+                                                      related=related, authors=authors)
+        parser = DccXmlUpdateParser(resp)
+        parser.validate()
+    except (InvalidDccNumberException, DccNumberNotFoundException):
+        sys.exit("Could not find DCC document '{}'.".format(dccid))
+    except KerberosError:
+        sys.exit("You are not logged in.  Use 'kinit' to initialize kerberos credential.")
+    except UnauthorisedAccessException:
+        sys.exit("You are not authorised to modify this document")
 
 class Cmd(object):
     """base class for commands"""
@@ -224,6 +241,32 @@ class Open(Cmd):
         cmd = ['xdg-open', url]
         subprocess.run(cmd, check=True)
 
+class UpdateMetadata(Cmd):
+    """Update entry metadata."""
+    cmd = 'update_metadata'
+    def __init__(self):
+        Cmd.__init__(self)
+        self.parser.add_argument('dccid',
+                                 help="DCC document number")
+        self.parser.add_argument('-v', '--verbose', action='store_true',
+                                 help="enable verbose output")
+        self.parser.add_argument('-t', '--title')
+        self.parser.add_argument('-s', '--abstract')
+        self.parser.add_argument('-k', '--keywords')
+        self.parser.add_argument('-n', '--note')
+        self.parser.add_argument('-r', '--related')
+        self.parser.add_argument('-a', '--authors')
+
+    def __call__(self, args):
+        if args.verbose:
+            enable_verbose_logs()
+
+        archive = DccArchive()
+        update_dcc_record_metadata(archive, args.dccid,
+                                   title=args.title, abstract=args.abstract,
+                                   keywords=args.keywords, note=args.note,
+                                   related=args.related, authors=args.authors)
+
 class Help(Cmd):
     """Print manpage or command help (also '-h' after command).
 
@@ -244,6 +287,7 @@ CMDS = collections.OrderedDict([
     ('view', View),
     ('fetch', Fetch),
     ('open', Open),
+    ('update_metadata', UpdateMetadata),
     ('help', Help),
     ])
 
