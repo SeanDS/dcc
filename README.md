@@ -12,14 +12,14 @@ An API for the [LIGO Scientific Collaboration](http://www.ligo.org/)
 
 ## Prerequisites
 
-  - LIGO.org credentials (`albert.einstein`)
-  - Python 3.5+
-  - Kerberos (`krb5-user`)
-  - `ecp-cookie-init` from [LIGO Data Grid](https://www.lsc-group.phys.uwm.edu/lscdatagrid/doc/installclient.html)
-  - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
-  - [pytz](https://pypi.python.org/pypi/pytz)
-  - html2text
-  - (Optional) [graphviz](https://pypi.python.org/pypi/graphviz) for Python
+ - LIGO.org credentials (`albert.einstein`)
+ - Python 3.5+
+ - Kerberos (`krb5-user`)
+ - `ecp-cookie-init` from [LIGO Data Grid](https://www.lsc-group.phys.uwm.edu/lscdatagrid/doc/installclient.html)
+ - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/)
+ - [pytz](https://pypi.python.org/pypi/pytz)
+ - html2text
+ - (Optional) [graphviz](https://pypi.python.org/pypi/graphviz) for Python
 
 LIGO.ORG credentials are given to members of the interferometric gravitational
 wave community and are not publicly available. The API may work with the public
@@ -174,6 +174,7 @@ logging.getLogger().setLevel(logging.DEBUG)
 ```
 
 ## Credits
-Sean Leavey <sean.leavey@ligo.org>  
-Jameson Graef Rollins <jameson.rollins@ligo.org>
-Christopher Wipf
+
+ - Sean Leavey <sean.leavey@ligo.org>  
+ - Jameson Graef Rollins <jameson.rollins@ligo.org>
+ - Christopher Wipf
