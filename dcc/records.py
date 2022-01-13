@@ -1,6 +1,5 @@
-"""DCC objects."""
+"""Record objects."""
 
-import os
 import logging
 from typing import List
 from pathlib import Path
@@ -12,10 +11,9 @@ import click
 from .sessions import DCCSession
 from .parsers import DCCRecordParser
 from .util import opened_file
+from .env import DEFAULT_HOST, DEFAULT_IDP
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_HOST = os.environ.get("DCC_HOST", "dcc.ligo.org")
-DEFAULT_IDP = os.environ.get("ECP_IDP", "login.ligo.org")
 
 
 class DCCArchive:
