@@ -1,4 +1,4 @@
-"""DCC record parsing."""
+"""Record parsing."""
 
 
 import re
@@ -210,59 +210,53 @@ class DccXmlUpdateParser:
 class DCCNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found."""
 
-    pass
-
 
 class NotLoggedInException(Exception):
     """Exception for when the user is not logged in."""
-
-    # error message given to user
-    message = "You are not logged in to the DCC, or the specified cookie string is invalid (see \
-the README for more information)"
 
     def __init__(self, *args, **kwargs):
         """Constructs a not logged in exception."""
 
         # call parent constructor with the error message
-        super(NotLoggedInException, self).__init__(self.message, *args, **kwargs)
+        super(NotLoggedInException, self).__init__(
+            "You are not logged in to the DCC, or the specified cookie string is "
+            "invalid (see the README for more information)",
+            *args,
+            **kwargs
+        )
 
 
 class UnrecognisedDCCRecordException(Exception):
     """Exception for when a page is not recognised by the DCC server."""
 
-    pass
-
 
 class UnauthorisedAccessException(Exception):
     """Exception for when a document is not available to the user to be viewed."""
 
-    pass
-
 
 class InvalidDCCXMLDocumentException(Exception):
     """Exception for when a document is not a valid LIGO DCC XML record."""
-
-    # error message given to user
-    message = "The document was retrieved, but is not a valid LIGO DCC XML \
-record"
 
     def __init__(self, *args, **kwargs):
         """Constructs an invalid LIGO DCC XML record exception."""
 
         # call parent constructor with the error message
         super(InvalidDCCXMLDocumentException, self).__init__(
-            self.message, *args, **kwargs
+            "The document was retrieved, but is not a valid LIGO DCC XML record",
+            *args,
+            **kwargs
         )
 
 
 class UnknownDccErrorException(Exception):
     """Exception for when an unknown error is reported by the DCC."""
 
-    # error message given to user
-    message = "An unknown error occurred; please report this to the developers"
-
     def __init__(self, *args, **kwargs):
         """Constructs an unknown exception."""
 
         # call parent constructor with the error message
-        super(UnknownDccErrorException, self).__init__(self.message, *args, **kwargs)
+        super(UnknownDccErrorException, self).__init__(
+            "An unknown error occurred; please report this to the developers",
+            *args,
+            **kwargs
+        )

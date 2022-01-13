@@ -1,3 +1,5 @@
+"""Utilities."""
+
 from contextlib import contextmanager
 from pathlib import Path
 
