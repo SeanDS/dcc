@@ -3,15 +3,15 @@
 """Pattern matching classes"""
 
 
-
 import abc
 import logging
 import re
 from datetime import datetime
-import pytz
 import xml.etree.ElementTree as ET
+import pytz
 from bs4 import BeautifulSoup as bs
 import dcc.record
+
 
 class DccRecordParser(object):
     """Represents a parser for DCC XML documents"""
@@ -48,14 +48,19 @@ class DccRecordParser(object):
             # check if we have the error page
             if navigator.find("dt", class_="Error"):
                 # we have an error, but what is its message?
-                if navigator.find("dd", text=re.compile("User .*? is not authorized to view this document.")):
+                if navigator.find(
+                    "dd",
+                    text=re.compile(
+                        "User .*? is not authorized to view this document."
+                    ),
+                ):
                     # unauthorised to view
                     raise UnauthorisedAccessException()
 
             # unknown error
             raise UnknownDccErrorException()
 
-        if not self.root.attrib['project'] == 'LIGO':
+        if not self.root.attrib["project"] == "LIGO":
             # invalid DCC document
             raise InvalidDCCXMLDocumentException()
 
@@ -63,57 +68,57 @@ class DccRecordParser(object):
         self.docrev = self.doc[0]
 
     def extract_dcc_number(self):
-        t = self.docrev.find('dccnumber').text[0]
-        n = self.docrev.find('dccnumber').text[1:]
-        v = self.docrev.attrib['version']
-        return dcc.record.DccNumber(t,n,v)
+        t = self.docrev.find("dccnumber").text[0]
+        n = self.docrev.find("dccnumber").text[1:]
+        v = self.docrev.attrib["version"]
+        return dcc.record.DccNumber(t, n, v)
 
     def extract_docid(self):
-        return dcc.record.DccDocId(self.docrev.attrib['docid'])
+        return dcc.record.DccDocId(self.docrev.attrib["docid"])
 
     def extract_title(self):
-        return self.docrev.find('title').text
+        return self.docrev.find("title").text
 
     def extract_authors(self):
         authors = []
-        for a in self.docrev.findall('author'):
-            name = a.find('fullname').text
+        for a in self.docrev.findall("author"):
+            name = a.find("fullname").text
             try:
-                enum = a.find('employeenumber').text
+                enum = a.find("employeenumber").text
             except AttributeError:
                 enum = None
             authors.append(dcc.record.DccAuthor(name, enum))
         return authors
 
     def extract_abstract(self):
-        return str(self.docrev.find('abstract').text)
+        return str(self.docrev.find("abstract").text)
 
     def extract_keywords(self):
-        return [str(k.text) for k in self.docrev.findall('keyword')]
+        return [str(k.text) for k in self.docrev.findall("keyword")]
 
     def extract_note(self):
-        return str(self.docrev.find('note').text)
+        return str(self.docrev.find("note").text)
 
     def extract_publication_info(self):
-        return str(self.docrev.find('publicationinfo').text)
+        return str(self.docrev.find("publicationinfo").text)
 
     def extract_journal_reference(self):
-        ref = self.docrev.find('reference')
+        ref = self.docrev.find("reference")
 
         if ref:
             # journal reference present
 
             # get URL attribute
-            if 'href' in ref.attrib.keys():
-                url = ref.attrib['href']
+            if "href" in ref.attrib.keys():
+                url = ref.attrib["href"]
             else:
                 url = None
 
             # get contained fields
-            citation = ref.find('citation').text
-            journal = ref.find('journal').text
-            volume = ref.find('volume').text
-            page = ref.find('page').text
+            citation = ref.find("citation").text
+            journal = ref.find("journal").text
+            volume = ref.find("volume").text
+            page = ref.find("page").text
 
             ref = dcc.record.DccJournalRef(journal, volume, page, citation, url)
 
@@ -121,36 +126,46 @@ class DccRecordParser(object):
 
     def extract_other_version_numbers(self):
         # use set to remove duplicates, but return a list
-        return list(set([int(r.attrib['version']) for r in self.docrev.find('otherversions')]))
+        return list(
+            set([int(r.attrib["version"]) for r in self.docrev.find("otherversions")])
+        )
 
     def extract_revision_dates(self):
         # DCC dates use the Pacific timezone
         pacific = pytz.timezone("US/Pacific")
 
         # parse modified date string localised to Pacific Time
-        modified = pacific.localize(datetime.strptime( \
-        self.docrev.attrib['modified'], "%Y-%m-%d %H:%M:%S"))
+        modified = pacific.localize(
+            datetime.strptime(self.docrev.attrib["modified"], "%Y-%m-%d %H:%M:%S")
+        )
 
         # other dates aren't in XML yet
         return (None, modified, None)
 
     def extract_attached_files(self):
         files = []
-        for f in self.docrev.findall('file'):
-            name = f.find('name').text
+        for f in self.docrev.findall("file"):
+            name = f.find("name").text
             try:
-                title = f.find('description').text
+                title = f.find("description").text
             except AttributeError:
                 title = name
-            url = f.attrib['href']
+            url = f.attrib["href"]
             files.append(dcc.record.DccFile(title, name, url))
         return files
 
     def extract_related_ids(self):
-        return [dcc.record.DccDocId.parse_from_xref(f) for f in self.docrev.findall('xrefto')]
+        return [
+            dcc.record.DccDocId.parse_from_xref(f)
+            for f in self.docrev.findall("xrefto")
+        ]
 
     def extract_referencing_ids(self):
-        return [dcc.record.DccDocId.parse_from_xref(f) for f in self.docrev.findall('xrefby')]
+        return [
+            dcc.record.DccDocId.parse_from_xref(f)
+            for f in self.docrev.findall("xrefby")
+        ]
+
 
 class DccXmlUpdateParser(object):
     """Represents a parser for DCC XMLUpdate responses"""
@@ -195,9 +210,12 @@ class DccXmlUpdateParser(object):
         # unknown error
         raise UnknownDccErrorException()
 
+
 class DccNumberNotFoundException(Exception):
     """Exception for when a DCC number is not found"""
+
     pass
+
 
 class NotLoggedInException(Exception):
     """Exception for when the user is not logged in"""
@@ -212,13 +230,18 @@ the README for more information)"
         # call parent constructor with the error message
         super(NotLoggedInException, self).__init__(self.message, *args, **kwargs)
 
+
 class UnrecognisedDccRecordException(Exception):
     """Exception for when a page is not recognised by the DCC server"""
+
     pass
+
 
 class UnauthorisedAccessException(Exception):
     """Exception for when a document is not available to the user to be viewed"""
+
     pass
+
 
 class InvalidDCCXMLDocumentException(Exception):
     """Exception for when a document is not a valid LIGO DCC XML record"""
@@ -231,8 +254,10 @@ record"
         """Constructs an invalid LIGO DCC XML record exception"""
 
         # call parent constructor with the error message
-        super(InvalidDCCXMLDocumentException, self).__init__(self.message, \
-        *args, **kwargs)
+        super(InvalidDCCXMLDocumentException, self).__init__(
+            self.message, *args, **kwargs
+        )
+
 
 class UnknownDccErrorException(Exception):
     """Exception for when an unknown error is reported by the DCC"""

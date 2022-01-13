@@ -13,8 +13,12 @@ import collections
 
 from .record import DccArchive, DccNumber, InvalidDccNumberException
 from .comms import KerberosError
-from .patterns import DccXmlUpdateParser, DccNumberNotFoundException, \
-    NotLoggedInException, UnauthorisedAccessException
+from .patterns import (
+    DccXmlUpdateParser,
+    DccNumberNotFoundException,
+    NotLoggedInException,
+    UnauthorisedAccessException,
+)
 
 ##################################################
 # The following is a custom subcommand CLI implementation based on
@@ -32,10 +36,10 @@ from .patterns import DccXmlUpdateParser, DccNumberNotFoundException, \
 #
 # FIXME: support options to the base command.
 
-PROG = 'dcc'
-DESC = 'LIGO DCC command line utility'
+PROG = "dcc"
+DESC = "LIGO DCC command line utility"
 
-SYNOPSIS = '{} <command> [<args>...]'.format(PROG)
+SYNOPSIS = "{} <command> [<args>...]".format(PROG)
 
 # NOTE: double spaces are interpreted by text2man to be paragraph
 # breaks.  NO DOUBLE SPACES.  Also two spaces at the end of a line
@@ -67,17 +71,20 @@ COMMANDS
 AUTHOR
     Sean Leavey <sean.leavey@ligo.org>
     Jameson Graef Rollins <jameson.rollins@ligo.org>
-""".format(prog=PROG,
-           desc=DESC,
-           synopsis=SYNOPSIS,
-           ).strip()
+""".format(
+    prog=PROG,
+    desc=DESC,
+    synopsis=SYNOPSIS,
+).strip()
+
 
 def enable_verbose_logs():
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('%(message)s'))
+    handler.setFormatter(logging.Formatter("%(message)s"))
     logger = logging.getLogger()
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
+
 
 def fetch_dcc_record(archive, dccid):
     try:
@@ -85,43 +92,67 @@ def fetch_dcc_record(archive, dccid):
     except DccNumberNotFoundException:
         sys.exit("Could not find DCC document '{}'.".format(dccid))
     except KerberosError:
-        sys.exit("You are not logged in.  Use 'kinit' to initialize kerberos credential.")
+        sys.exit(
+            "You are not logged in.  Use 'kinit' to initialize kerberos credential."
+        )
     except UnauthorisedAccessException:
         sys.exit("You are not authorised to view this document")
 
-def update_dcc_record_metadata(archive, dccid, title=None, abstract=None, keywords=None,
-                               note=None, related=None, authors=None):
+
+def update_dcc_record_metadata(
+    archive,
+    dccid,
+    title=None,
+    abstract=None,
+    keywords=None,
+    note=None,
+    related=None,
+    authors=None,
+):
     try:
         dccid = DccNumber(dccid)
-        resp = archive.fetcher.update_record_metadata(dccid,
-                                                      title=title, abstract=abstract,
-                                                      keywords=keywords, note=note,
-                                                      related=related, authors=authors)
+        resp = archive.fetcher.update_record_metadata(
+            dccid,
+            title=title,
+            abstract=abstract,
+            keywords=keywords,
+            note=note,
+            related=related,
+            authors=authors,
+        )
         parser = DccXmlUpdateParser(resp)
         parser.validate()
     except (InvalidDccNumberException, DccNumberNotFoundException):
         sys.exit("Could not find DCC document '{}'.".format(dccid))
     except KerberosError:
-        sys.exit("You are not logged in.  Use 'kinit' to initialize kerberos credential.")
+        sys.exit(
+            "You are not logged in.  Use 'kinit' to initialize kerberos credential."
+        )
     except UnauthorisedAccessException:
         sys.exit("You are not authorised to modify this document")
 
+
 class Cmd(object):
     """base class for commands"""
-    cmd = ''
+
+    cmd = ""
+
     def __init__(self):
         """Initialize argument parser"""
         self.parser = argparse.ArgumentParser(
-            prog='{} {}'.format(PROG, self.cmd),
+            prog="{} {}".format(PROG, self.cmd),
             description=self.__doc__.strip(),
             # formatter_class=argparse.RawDescriptionHelpFormatter,
         )
+
     def parse_args(self, args):
         """Parse arguments and returned ArgumentParser Namespace object"""
         return self.parser.parse_args(args)
+
     def __call__(self, args):
         """Take Namespace object as input and execute command"""
         pass
+
 
 class View(Cmd):
     """View entry metadata.
@@ -131,13 +162,15 @@ class View(Cmd):
     be printed.
 
     """
-    cmd = 'view'
+
+    cmd = "view"
+
     def __init__(self):
         Cmd.__init__(self)
-        self.parser.add_argument('dccid',
-                                 help="DCC document number")
-        self.parser.add_argument('-v', '--verbose', action='store_true',
-                                 help="enable verbose output")
+        self.parser.add_argument("dccid", help="DCC document number")
+        self.parser.add_argument(
+            "-v", "--verbose", action="store_true", help="enable verbose output"
+        )
         # self.parser.add_argument('field', nargs='?',
         #                          help="document field")
 
@@ -150,34 +183,39 @@ class View(Cmd):
 
         # wrapper for outputting text paragraphs (abstract, note,
         # etc.)
-        __, width = subprocess.check_output(['stty', 'size']).split()
+        __, width = subprocess.check_output(["stty", "size"]).split()
         wrapper = textwrap.TextWrapper(
             width=int(width),
-            initial_indent='  ',
-            subsequent_indent='  ',
-            )
+            initial_indent="  ",
+            subsequent_indent="  ",
+        )
 
-        print('number: {}'.format(record.dcc_number))
-        print('url: {}'.format(archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)))
-        print('title: {}'.format(record.title))
-        print('modified: {}'.format(record.contents_revision_date))
-        print('authors:')
+        print("number: {}".format(record.dcc_number))
+        print(
+            "url: {}".format(
+                archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)
+            )
+        )
+        print("title: {}".format(record.title))
+        print("modified: {}".format(record.contents_revision_date))
+        print("authors:")
         for a in record.authors:
-            print('  {}'.format(a.name.strip()))
-        print('abstract:')
+            print("  {}".format(a.name.strip()))
+        print("abstract:")
         print(wrapper.fill(html2text.html2text(record.abstract)))
-        print('note:')
+        print("note:")
         print(wrapper.fill(html2text.html2text(record.note)))
-        print('keywords: {}'.format(", ".join(record.keywords)))
-        print('files:')
-        for i,f in enumerate(record.files):
-            print('  {} {}'.format(i, f))
-        print('referenced by:')
+        print("keywords: {}".format(", ".join(record.keywords)))
+        print("files:")
+        for i, f in enumerate(record.files):
+            print("  {} {}".format(i, f))
+        print("referenced by:")
         for r in record.referenced_by:
-            print('  {}'.format(r))
-        print('related:')
+            print("  {}".format(r))
+        print("related:")
         for r in record.related:
-            print('  {}'.format(r))
+            print("  {}".format(r))
+
 
 class Fetch(Cmd):
     """Fetch/view entry files.
@@ -188,17 +226,24 @@ class Fetch(Cmd):
     the file will be opened in an appropriate viewer.
 
     """
-    cmd = 'fetch'
+
+    cmd = "fetch"
+
     def __init__(self):
         Cmd.__init__(self)
-        self.parser.add_argument('dccid',
-                                 help="DCC document number")
-        self.parser.add_argument('fileid', nargs='?', default=0,
-                                 help="file number or name")
-        self.parser.add_argument('-s', '--save', action='store_true',
-                                 help="save file to the current directory")
-        self.parser.add_argument('-v', '--verbose', action='store_true',
-                                 help="enable verbose output")
+        self.parser.add_argument("dccid", help="DCC document number")
+        self.parser.add_argument(
+            "fileid", nargs="?", default=0, help="file number or name"
+        )
+        self.parser.add_argument(
+            "-s",
+            "--save",
+            action="store_true",
+            help="save file to the current directory",
+        )
+        self.parser.add_argument(
+            "-v", "--verbose", action="store_true", help="enable verbose output"
+        )
 
     def __call__(self, args):
         if args.verbose:
@@ -221,61 +266,72 @@ class Fetch(Cmd):
             out = f.filename
             if os.path.exists(out):
                 sys.exit("File '{}' already exists.".format(out))
-            with open(out, 'w') as fd:
+            with open(out, "w") as fd:
                 fd.write(f.data)
             print("Saved file: {}".format(out), file=sys.stderr)
         else:
             f.open_file()
 
+
 class Open(Cmd):
     """Open entry in browser."""
-    cmd = 'open'
+
+    cmd = "open"
+
     def __init__(self):
         Cmd.__init__(self)
-        self.parser.add_argument('dccid',
-                                 help="DCC document number")
+        self.parser.add_argument("dccid", help="DCC document number")
 
     def __call__(self, args):
         archive = DccArchive()
         url = archive.fetcher.get_record_url(DccNumber(args.dccid), xml=False)
-        cmd = ['xdg-open', url]
+        cmd = ["xdg-open", url]
         subprocess.run(cmd, check=True)
+
 
 class UpdateMetadata(Cmd):
     """Update entry metadata."""
-    cmd = 'update_metadata'
+
+    cmd = "update_metadata"
+
     def __init__(self):
         Cmd.__init__(self)
-        self.parser.add_argument('dccid',
-                                 help="DCC document number")
-        self.parser.add_argument('-v', '--verbose', action='store_true',
-                                 help="enable verbose output")
-        self.parser.add_argument('-t', '--title')
-        self.parser.add_argument('-s', '--abstract')
-        self.parser.add_argument('-k', '--keywords')
-        self.parser.add_argument('-n', '--note')
-        self.parser.add_argument('-r', '--related')
-        self.parser.add_argument('-a', '--authors')
+        self.parser.add_argument("dccid", help="DCC document number")
+        self.parser.add_argument(
+            "-v", "--verbose", action="store_true", help="enable verbose output"
+        )
+        self.parser.add_argument("-t", "--title")
+        self.parser.add_argument("-s", "--abstract")
+        self.parser.add_argument("-k", "--keywords")
+        self.parser.add_argument("-n", "--note")
+        self.parser.add_argument("-r", "--related")
+        self.parser.add_argument("-a", "--authors")
 
     def __call__(self, args):
         if args.verbose:
             enable_verbose_logs()
 
         archive = DccArchive()
-        update_dcc_record_metadata(archive, args.dccid,
-                                   title=args.title, abstract=args.abstract,
-                                   keywords=args.keywords, note=args.note,
-                                   related=args.related, authors=args.authors)
+        update_dcc_record_metadata(
+            archive,
+            args.dccid,
+            title=args.title,
+            abstract=args.abstract,
+            keywords=args.keywords,
+            note=args.note,
+            related=args.related,
+            authors=args.authors,
+        )
+
 
 class Help(Cmd):
-    """Print manpage or command help (also '-h' after command).
+    """Print manpage or command help (also '-h' after command)."""
 
-    """
-    cmd = 'help'
+    cmd = "help"
+
     def __init__(self):
         Cmd.__init__(self)
-        self.parser.add_argument('cmd', nargs='?',
-                                 help="command")
+        self.parser.add_argument("cmd", nargs="?", help="command")
 
     def __call__(self, args):
         if args.cmd:
@@ -283,42 +339,53 @@ class Help(Cmd):
         else:
             print(MANPAGE.format(cmds=format_commands(man=True)))
 
-CMDS = collections.OrderedDict([
-    ('view', View),
-    ('fetch', Fetch),
-    ('open', Open),
-    ('update_metadata', UpdateMetadata),
-    ('help', Help),
-    ])
+
+CMDS = collections.OrderedDict(
+    [
+        ("view", View),
+        ("fetch", Fetch),
+        ("open", Open),
+        ("update_metadata", UpdateMetadata),
+        ("help", Help),
+    ]
+)
 
 ALIAS = {
-    '--help': 'help',
-    '-h': 'help',
-    }
+    "--help": "help",
+    "-h": "help",
+}
 
 ##################################################
 
+
 def format_commands(man=False):
-    prefix = ' '*8
+    prefix = " " * 8
     wrapper = textwrap.TextWrapper(
         width=70,
         initial_indent=prefix,
         subsequent_indent=prefix,
-        )
+    )
     with io.StringIO() as f:
         for name, func in CMDS.items():
             if man:
                 fo = func()
-                usage = fo.parser.format_usage()[len('usage: {} '.format(PROG)):].strip()
-                desc = wrapper.fill('\n'.join([l.strip() for l in fo.parser.description.splitlines() if l]))
-                f.write('  {}  \n'.format(usage))
-                f.write(desc+'\n')
-                f.write('\n')
+                usage = fo.parser.format_usage()[
+                    len("usage: {} ".format(PROG)) :
+                ].strip()
+                desc = wrapper.fill(
+                    "\n".join(
+                        [l.strip() for l in fo.parser.description.splitlines() if l]
+                    )
+                )
+                f.write("  {}  \n".format(usage))
+                f.write(desc + "\n")
+                f.write("\n")
             else:
                 desc = func.__doc__.splitlines()[0]
-                f.write('  {:10}{}\n'.format(name, desc))
+                f.write("  {:10}{}\n".format(name, desc))
         output = f.getvalue()
     return output.rstrip()
+
 
 def get_func(cmd):
     if cmd in ALIAS:
@@ -326,14 +393,15 @@ def get_func(cmd):
     try:
         return CMDS[cmd]()
     except KeyError:
-        print('Unknown command:', cmd, file=sys.stderr)
+        print("Unknown command:", cmd, file=sys.stderr)
         print("See 'help' for usage.", file=sys.stderr)
         sys.exit(1)
 
+
 def main():
     if len(sys.argv) < 2:
-        print('Command not specified.', file=sys.stderr)
-        print('usage: '+SYNOPSIS, file=sys.stderr)
+        print("Command not specified.", file=sys.stderr)
+        print("usage: " + SYNOPSIS, file=sys.stderr)
         print(file=sys.stderr)
         print(format_commands(), file=sys.stderr)
         sys.exit(1)
@@ -342,7 +410,8 @@ def main():
     func = get_func(cmd)
     func(func.parse_args(args))
 
+
 ##################################################
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

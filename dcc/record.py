@@ -3,7 +3,6 @@
 """Record classes"""
 
 
-
 import sys
 import os
 import abc
@@ -12,6 +11,7 @@ import subprocess
 import tempfile
 import dcc.comms
 import dcc.patterns
+
 
 class DccObject(object, metaclass=abc.ABCMeta):
     """Abstract representation of a DCC object"""
@@ -34,13 +34,14 @@ class DccObject(object, metaclass=abc.ABCMeta):
 
         return {k: self.__dict__[k] for k in self._fields}
 
+
 class DccArchive(DccObject):
     """Represents a collection of DCC documents"""
 
     """Fields with dict-style access"""
-    _fields = ['records']
+    _fields = ["records"]
 
-    def __init__(self, fetcher='http', progress_hook=None):
+    def __init__(self, fetcher="http", progress_hook=None):
         """Instantiates a DCC archive
 
         :param fetcher: type of fetcher to use, or fetcher object
@@ -57,7 +58,7 @@ class DccArchive(DccObject):
         else:
             fetcher = str(fetcher)
 
-            if fetcher == 'http':
+            if fetcher == "http":
                 # create an HTTP fetcher
                 self.fetcher = dcc.comms.HttpFetcher()
             else:
@@ -108,18 +109,18 @@ class DccArchive(DccObject):
         """
 
         # get download_files parameter (a bit hacky due to Python 2's argument handling behaviour)
-        download_files = bool(kwargs.get('download_files', False))
+        download_files = bool(kwargs.get("download_files", False))
 
         # get overwrite parameter
-        overwrite = bool(kwargs.get('overwrite', False))
+        overwrite = bool(kwargs.get("overwrite", False))
 
         # remove download_files from kwargs
-        if 'download_files' in kwargs:
-            del kwargs['download_files']
+        if "download_files" in kwargs:
+            del kwargs["download_files"]
 
         # remove overwrite from kwargs
-        if 'overwrite' in kwargs:
-            del kwargs['overwrite']
+        if "overwrite" in kwargs:
+            del kwargs["overwrite"]
 
         # get DCC number from input(s)
         if isinstance(key, DccNumber):
@@ -164,8 +165,7 @@ class DccArchive(DccObject):
         """
 
         # get the representative strings
-        dcc_number_str = DccArchive.get_dcc_number_str(record.dcc_number, \
-        version=True)
+        dcc_number_str = DccArchive.get_dcc_number_str(record.dcc_number, version=True)
 
         # check if record already exists
         if dcc_number_str in self.records:
@@ -200,8 +200,7 @@ class DccArchive(DccObject):
         if not dcc_number.has_version():
             raise NoVersionSpecifiedException()
 
-        return DccArchive.get_dcc_number_str(dcc_number, version=True) \
-        in self.records
+        return DccArchive.get_dcc_number_str(dcc_number, version=True) in self.records
 
     def has_document(self, dcc_number):
         """Checks if the archive contains any version of the specified \
@@ -254,7 +253,9 @@ class DccArchive(DccObject):
 
         # loop over files in this record
         for dcc_file in record.files:
-            self.logger.info("(%d/%d) Fetching %s", current_count, total_count, dcc_file)
+            self.logger.info(
+                "(%d/%d) Fetching %s", current_count, total_count, dcc_file
+            )
 
             # fetch file contents
             self.download_file_data(dcc_file)
@@ -284,11 +285,12 @@ class DccArchive(DccObject):
         # use the DCC number's string representation method
         return dcc_number.string_repr(version=version)
 
+
 class DccAuthor(DccObject):
     """Represents a DCC author"""
 
     """Fields with dict-style access"""
-    _fields = ['name', 'uid']
+    _fields = ["name", "uid"]
 
     def __init__(self, name, uid=None):
         """Instantiates a DCC author
@@ -316,11 +318,12 @@ class DccAuthor(DccObject):
 
         return self.__str__()
 
+
 class DccNumber(DccObject):
     """Represents a DCC number, including category and numeric identifier"""
 
     """Fields with dict-style access"""
-    _fields = ['category', 'numeric', 'version']
+    _fields = ["category", "numeric", "version"]
 
     # DCC document type designators and descriptions
     document_type_letters = {
@@ -334,7 +337,7 @@ class DccNumber(DccObject):
         "P": "Publications",
         "Q": "Quality Assurance documents",
         "S": "Serial numbers",
-        "T": "Techical notes"
+        "T": "Techical notes",
     }
 
     def __init__(self, first_id, numeric=None, version=None):
@@ -356,22 +359,22 @@ class DccNumber(DccObject):
 
         if isinstance(first_id, DccNumber):
             # copy constructor
-            category = str(first_id['category'])
-            numeric = str(first_id['numeric'])
-            version = int(first_id['version'])
+            category = str(first_id["category"])
+            numeric = str(first_id["numeric"])
+            version = int(first_id["version"])
         elif numeric is None:
             # full number specified, so check it's long enough
             if len(first_id) < 2:
-                raise ValueError("Invalid DCC number; should be of the form \"T0123456\"")
+                raise ValueError('Invalid DCC number; should be of the form "T0123456"')
 
             # get rid of first "LIGO-" if present
-            if first_id.startswith('LIGO-'):
+            if first_id.startswith("LIGO-"):
                 # chop off first 5 characters
                 first_id = first_id[5:]
 
             try:
                 # find where the hyphen denoting version is
-                hyphen_index = first_id.index('-')
+                hyphen_index = first_id.index("-")
             except ValueError:
                 # couldn't find it
                 hyphen_index = None
@@ -379,14 +382,16 @@ class DccNumber(DccObject):
             if hyphen_index is not None:
                 # check if the version was specified, and if so, warn the user
                 if version is not None:
-                    self.logger.warning("Version argument ignored as it was specified in the DCC \
-                        string")
+                    self.logger.warning(
+                        "Version argument ignored as it was specified in the DCC \
+                        string"
+                    )
 
                 # numeric part is between second character and index
                 numeric = str(first_id[1:hyphen_index])
 
                 # version is last part, two places beyond start of hyphen
-                version = int(first_id[hyphen_index+2:])
+                version = int(first_id[hyphen_index + 2 :])
             else:
                 # numeric is everything after first character
                 numeric = str(first_id[1:])
@@ -445,8 +450,9 @@ class DccNumber(DccObject):
         """
 
         # compare the category and number
-        return (other_dcc_number.category == self.category) and \
-            (other_dcc_number.numeric == self.numeric)
+        return (other_dcc_number.category == self.category) and (
+            other_dcc_number.numeric == self.numeric
+        )
 
     def string_repr(self, version=True):
         """String representation of the DCC number, with optional version number
@@ -507,8 +513,9 @@ class DccNumber(DccObject):
             xml_str = ""
 
         # return the URL with appropriate version suffix
-        return "{0}{1}{2}{3}".format(self.category, self.numeric, \
-        version_suffix, xml_str)
+        return "{0}{1}{2}{3}".format(
+            self.category, self.numeric, version_suffix, xml_str
+        )
 
     def __str__(self):
         """String representation of the DCC number"""
@@ -527,7 +534,9 @@ class DccNumber(DccObject):
         """
 
         # compare the category, number and version
-        return self.numbers_equal(other_dcc_number) and (other_dcc_number.version == self.version)
+        return self.numbers_equal(other_dcc_number) and (
+            other_dcc_number.version == self.version
+        )
 
     def __ne__(self, other_dcc_number):
         """Checks if the specified DCC number is not equal to this one
@@ -537,11 +546,12 @@ class DccNumber(DccObject):
 
         return not self.__eq__(other_dcc_number)
 
+
 class DccDocId(DccObject):
     """Represents a DCC document id"""
 
     """Fields with dict-style access"""
-    _fields = ['docid', 'version']
+    _fields = ["docid", "version"]
 
     def __init__(self, docid, version=None):
         """Instantiates a DccDocId object
@@ -621,23 +631,38 @@ class DccDocId(DccObject):
         """
 
         if "version" in field.attrib:
-            version = int(field.attrib['version'])
+            version = int(field.attrib["version"])
         else:
             version = None
 
         if "docid" not in field.attrib:
             raise InvalidXMLCrossReferenceException()
 
-        return cls(int(field.attrib['docid']), version=version)
+        return cls(int(field.attrib["docid"]), version=version)
+
 
 class DccRecord(DccObject):
     """Represents a DCC record"""
 
     """Fields with dict-style access"""
-    _fields = ['dcc_number', 'docid', 'title', 'authors', 'abstract', \
-    'keywords', 'note', 'publication_info', 'journal_reference', \
-    'other_version_numbers', 'creation_date', 'contents_revision_date', \
-    'metadata_revision_date', 'files', 'referenced_by', 'related']
+    _fields = [
+        "dcc_number",
+        "docid",
+        "title",
+        "authors",
+        "abstract",
+        "keywords",
+        "note",
+        "publication_info",
+        "journal_reference",
+        "other_version_numbers",
+        "creation_date",
+        "contents_revision_date",
+        "metadata_revision_date",
+        "files",
+        "referenced_by",
+        "related",
+    ]
 
     def __init__(self, dcc_number):
         """Instantiates a DCC record
@@ -698,12 +723,18 @@ class DccRecord(DccObject):
             if dcc_record.version is not None:
                 if this_dcc_number.version != dcc_record.version:
                     # correct document number, but incorrect version
-                    raise DifferentDccRecordException("The retrieved record \
-has the correct number but not the correct version")
+                    raise DifferentDccRecordException(
+                        "The retrieved record \
+has the correct number but not the correct version"
+                    )
         else:
             # incorrect document number
-            raise DifferentDccRecordException("The retrieved record number \
-({0}) is different from the requested one ({1})".format(this_dcc_number, identifier))
+            raise DifferentDccRecordException(
+                "The retrieved record number \
+({0}) is different from the requested one ({1})".format(
+                    this_dcc_number, identifier
+                )
+            )
 
         # create record with DCC number
         record = DccRecord(this_dcc_number)
@@ -733,11 +764,16 @@ has the correct number but not the correct version")
             pass
         # set other versions
         record.other_version_numbers = list(other_versions)
-        logger.info("Found %d other version number(s)", len(record.other_version_numbers))
+        logger.info(
+            "Found %d other version number(s)", len(record.other_version_numbers)
+        )
 
         # get the revision dates
-        (creation_date, contents_rev_date, metadata_rev_date) = \
-        parser.extract_revision_dates()
+        (
+            creation_date,
+            contents_rev_date,
+            metadata_rev_date,
+        ) = parser.extract_revision_dates()
 
         # set them individually
         record.creation_date = creation_date
@@ -818,11 +854,12 @@ has the correct number but not the correct version")
 
         return [str(record) for record in self.related]
 
+
 class DccFile(DccObject):
     """Represents a file attached to a DCC document"""
 
     """Fields with dict-style access"""
-    _fields = ['title', 'filename', 'url', 'local_path']
+    _fields = ["title", "filename", "url", "local_path"]
 
     def __init__(self, title, filename, url):
         """Instantiates a DCC file object
@@ -887,7 +924,7 @@ class DccFile(DccObject):
         self.logger.info("Opening %s...", self.local_path)
 
         # check if Linux
-        if sys.platform.startswith('linux'):
+        if sys.platform.startswith("linux"):
             # open with X.ORG
             subprocess.call(["xdg-open", self.local_path])
         else:
@@ -905,7 +942,7 @@ class DccFile(DccObject):
         self.logger.info("Setting temporary path for %s", self)
 
         # get the file's suffix, if there is one
-        dot_idx = self.filename.find('.')
+        dot_idx = self.filename.find(".")
 
         # check if the dot was found
         if dot_idx >= 0:
@@ -929,14 +966,14 @@ class DccFile(DccObject):
         # set the (string) path
         self.local_path = tmp_file.name
 
+
 class DccJournalRef(DccObject):
     """Represents a journal reference attached to a DCC document"""
 
     """Fields with dict-style access"""
-    _fields = ['journal', 'volume', 'page', 'citation', 'url']
+    _fields = ["journal", "volume", "page", "citation", "url"]
 
-    def __init__(self, journal=None, volume=None, page=None, citation=None, \
-    url=None):
+    def __init__(self, journal=None, volume=None, page=None, citation=None, url=None):
         if journal is not None:
             journal = str(journal)
 
@@ -989,40 +1026,58 @@ class DccJournalRef(DccObject):
 
         return self.__str__()
 
+
 class InvalidDccNumberException(Exception):
     """Exception for when a DCC number is invalid"""
+
     pass
+
 
 class NoVersionSpecifiedException(Exception):
     """Exception for when a DCC number has not got a version specified"""
+
     pass
+
 
 class InvalidDccDocIdException(Exception):
     """Exception for when a document id is invalid"""
+
     pass
+
 
 class DifferentDccRecordException(Exception):
     """Exception for when a different DCC record is retrieved compared to the requested one"""
+
     pass
+
 
 class DifferentDocIdException(Exception):
     """Exception for when a different document id is retrieved compared to the \
     requested one"""
+
     pass
+
 
 class InvalidXMLCrossReferenceException(Exception):
     """Exception for when a provided XML <xrefto> or <xrefby> element is \
     invalid"""
+
     pass
+
 
 class DataNotDownloadedException(Exception):
     """Exception for when file data is not downloaded"""
+
     pass
+
 
 class FetcherNotRecognisedException(Exception):
     """Exception for when the specified fetcher is not recognised"""
+
     pass
+
 
 class RecordCannotBeOverwrittenException(Exception):
     """Exception for when a record can't be overwritten due to a user option"""
+
     pass

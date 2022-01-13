@@ -15,6 +15,7 @@ import urllib.error
 import urllib.parse
 import http.cookiejar
 
+
 class Fetcher(object, metaclass=abc.ABCMeta):
     """Represents a collection of tools to communicate with the DCC server"""
 
@@ -50,8 +51,16 @@ class Fetcher(object, metaclass=abc.ABCMeta):
         # fetch and return the data at the file's URL
         return self._get_url_contents(dcc_file.url)
 
-    def update_record_metadata(self, dcc_number, title=None, abstract=None,
-                               keywords=None, note=None, related=None, authors=None):
+    def update_record_metadata(
+        self,
+        dcc_number,
+        title=None,
+        abstract=None,
+        keywords=None,
+        note=None,
+        related=None,
+        authors=None,
+    ):
         """Updates metadata for the DCC record specified by the provided number
 
         The version (if any) of the provided DCC number is ignored.  Only the latest
@@ -69,14 +78,19 @@ class Fetcher(object, metaclass=abc.ABCMeta):
         """
 
         # build DCC "Bulk Modify" request URL
-        dcc_update_metadata_url = self._build_dcc_url('cgi-bin/private/DocDB/XMLUpdate')
+        dcc_update_metadata_url = self._build_dcc_url("cgi-bin/private/DocDB/XMLUpdate")
 
         # prepare form data dict with the requested updates
-        data = self._build_dcc_metadata_form(title=title, abstract=abstract,
-                                             keywords=keywords, note=note,
-                                             related=related, authors=authors)
-        data['DocumentsField'] = dcc_number.string_repr(version=False)
-        data['DocumentChange'] = "Change Latest Version"
+        data = self._build_dcc_metadata_form(
+            title=title,
+            abstract=abstract,
+            keywords=keywords,
+            note=note,
+            related=related,
+            authors=authors,
+        )
+        data["DocumentsField"] = dcc_number.string_repr(version=False)
+        data["DocumentChange"] = "Change Latest Version"
 
         # post form data and return server's response
         return self._post_url_form_data(dcc_update_metadata_url, data)
@@ -93,27 +107,34 @@ class Fetcher(object, metaclass=abc.ABCMeta):
 
         pass
 
-    def _build_dcc_metadata_form(self, title=None, abstract=None, keywords=None,
-                                 note=None, related=None, authors=None):
+    def _build_dcc_metadata_form(
+        self,
+        title=None,
+        abstract=None,
+        keywords=None,
+        note=None,
+        related=None,
+        authors=None,
+    ):
         """Builds form data representing the specified metadata update"""
 
         fields = [
-            (title, 'TitleField', 'TitleChange'),
-            (abstract, 'AbstractField', 'AbstractChange'),
-            (keywords, 'KeywordsField', 'KeywordsChange'),
-            (note, 'NotesField', 'NotesChange'),
-            (related, 'RelatedDocumentsField', 'RelatedDocumentsChange'),
-            (authors, 'authormanual', 'AuthorsChange'),
-            ]
+            (title, "TitleField", "TitleChange"),
+            (abstract, "AbstractField", "AbstractChange"),
+            (keywords, "KeywordsField", "KeywordsChange"),
+            (note, "NotesField", "NotesChange"),
+            (related, "RelatedDocumentsField", "RelatedDocumentsChange"),
+            (authors, "authormanual", "AuthorsChange"),
+        ]
 
         data = dict()
         for field_data, field_name, field_change_name in fields:
             if field_data is not None:
                 data[field_name] = field_data
-                data[field_change_name] = 'Replace'
+                data[field_change_name] = "Replace"
             else:
-                data[field_name] = ''
-                data[field_change_name] = 'Append'
+                data[field_name] = ""
+                data[field_change_name] = "Append"
 
         return data
 
@@ -129,18 +150,26 @@ class Fetcher(object, metaclass=abc.ABCMeta):
 
         pass
 
+
 class HttpFetcher(Fetcher):
     """Represents a fetcher using HTTP"""
 
     # DCC servers, in order of preference
-    servers = ["dcc.ligo.org", "dcc-backup.ligo.org", "dcc-lho.ligo.org", "dcc-llo.ligo.org"]
+    servers = [
+        "dcc.ligo.org",
+        "dcc-backup.ligo.org",
+        "dcc-lho.ligo.org",
+        "dcc-llo.ligo.org",
+    ]
 
     # protocol
     protocol = "https"
 
     # ecp cookie file
     # FIXME: should we use a special cookie file for this app?
-    ecp_cookie_path = os.getenv('ECP_COOKIE_FILE', '/tmp/ecpcookie.u{}'.format(os.getuid()))
+    ecp_cookie_path = os.getenv(
+        "ECP_COOKIE_FILE", "/tmp/ecpcookie.u{}".format(os.getuid())
+    )
 
     # download chunk size
     chunk_size = 8192
@@ -160,15 +189,15 @@ class HttpFetcher(Fetcher):
         # for now, just return the main one
         return self.servers[0]
 
-    def _build_dcc_url(self, path=''):
+    def _build_dcc_url(self, path=""):
         """Builds a DCC URL given path"""
         if path:
-            path = '/{}'.format(path)
-        return '{protocol}://{server}{path}'.format(
+            path = "/{}".format(path)
+        return "{protocol}://{server}{path}".format(
             protocol=self.protocol,
             server=self.get_preferred_server(),
             path=path,
-            )
+        )
 
     def _build_dcc_record_url(self, dcc_number, xml=True):
         """Builds a DCC record base URL given the specified DCC number
@@ -185,27 +214,27 @@ class HttpFetcher(Fetcher):
         :param author: author to download
         """
 
-        return self._build_dcc_url("cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid))
+        return self._build_dcc_url(
+            "cgi-bin/private/DocDB/ListBy?authorid=" + str(author.uid)
+        )
 
     def ecp_cookie_init(self):
         """Execute ecp-cookie-init to fetch a new session cookie"""
         # This is meant for debugging authentication, so that an
         # expired cookie can be provided and it won't be overwritten.
-        if os.getenv('ECP_COOKIE_FILE'):
+        if os.getenv("ECP_COOKIE_FILE"):
             return
-        dcc_url = self._build_dcc_url('dcc')
+        dcc_url = self._build_dcc_url("dcc")
         self.logger.info("Fetching cookies for: %s", dcc_url)
-        cmd = ['ecp-cookie-init', '-k', '-q', '-n',
-               '-c', self.ecp_cookie_path,
-               dcc_url]
-        self.logger.debug(' '.join(cmd))
-        ecp_ret = subprocess.run(cmd,
-                             stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
+        cmd = ["ecp-cookie-init", "-k", "-q", "-n", "-c", self.ecp_cookie_path, dcc_url]
+        self.logger.debug(" ".join(cmd))
+        ecp_ret = subprocess.run(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         if ecp_ret.returncode != 0:
-            klist_ret = subprocess.run(['klist'],
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
+            klist_ret = subprocess.run(
+                ["klist"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
             if klist_ret.returncode != 0:
                 raise KerberosError()
             else:
@@ -247,7 +276,7 @@ class HttpFetcher(Fetcher):
         stream = opener.open(url)
 
         # get content size
-        content_length_header = stream.getheader('Content-Length')
+        content_length_header = stream.getheader("Content-Length")
 
         # if the content length header is not specified, just return the full data
         if content_length_header is None:
@@ -312,6 +341,7 @@ class HttpFetcher(Fetcher):
         # read and return the server's response
         return opener.open(req).read()
 
+
 class ECPCookieJar(http.cookiejar.MozillaCookieJar):
     """Alternate cookiejar parser that replaces expiry date of 0 with an empty \
     string to avoid Python parsing issue when using ecp-cookie-init"""
@@ -337,30 +367,38 @@ class ECPCookieJar(http.cookiejar.MozillaCookieJar):
         magic = f.readline()
         if not self.magic_re.search(magic):
             raise http.cookiejar.LoadError(
-                "%r does not look like a Netscape format cookies file" %
-                filename)
+                "%r does not look like a Netscape format cookies file" % filename
+            )
 
         try:
             while 1:
                 line = f.readline()
-                if line == "": break
+                if line == "":
+                    break
 
                 # last field may be absent, so keep any trailing tab
-                if line.endswith("\n"): line = line[:-1]
+                if line.endswith("\n"):
+                    line = line[:-1]
 
                 # remove #HttpOnly_ prefix
                 if line.strip().startswith("#HttpOnly_"):
-                    line = line[len("#HttpOnly_"):]
+                    line = line[len("#HttpOnly_") :]
 
                 # skip comments and blank lines XXX what is $ for?
-                if (line.strip().startswith(("#", "$")) or
-                    line.strip() == ""):
+                if line.strip().startswith(("#", "$")) or line.strip() == "":
                     continue
 
-                domain, domain_specified, path, secure, expires, name, value = \
-                        line.split("\t")
-                secure = (secure == "TRUE")
-                domain_specified = (domain_specified == "TRUE")
+                (
+                    domain,
+                    domain_specified,
+                    path,
+                    secure,
+                    expires,
+                    name,
+                    value,
+                ) = line.split("\t")
+                secure = secure == "TRUE"
+                domain_specified = domain_specified == "TRUE"
 
                 if name == "":
                     # cookies.txt regards 'Set-Cookie: foo' as a cookie
@@ -380,16 +418,24 @@ class ECPCookieJar(http.cookiejar.MozillaCookieJar):
                     discard = True
 
                 # assume path_specified is false
-                c = http.cookiejar.Cookie(0, name, value,
-                           None, False,
-                           domain, domain_specified, initial_dot,
-                           path, False,
-                           secure,
-                           expires,
-                           discard,
-                           None,
-                           None,
-                           {})
+                c = http.cookiejar.Cookie(
+                    0,
+                    name,
+                    value,
+                    None,
+                    False,
+                    domain,
+                    domain_specified,
+                    initial_dot,
+                    path,
+                    False,
+                    secure,
+                    expires,
+                    discard,
+                    None,
+                    None,
+                    {},
+                )
 
                 if not ignore_discard and c.discard:
                     continue
@@ -404,10 +450,12 @@ class ECPCookieJar(http.cookiejar.MozillaCookieJar):
         except Exception:
             http.cookiejar._warn_unhandled_exception()
 
-            raise http.cookiejar.LoadError(\
-                            "invalid Netscape format cookies file %r: %r" %
-                            (filename, line))
+            raise http.cookiejar.LoadError(
+                "invalid Netscape format cookies file %r: %r" % (filename, line)
+            )
+
 
 class KerberosError(Exception):
     """Exception for missing Kerberos credentials"""
+
     pass
