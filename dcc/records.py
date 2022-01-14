@@ -179,7 +179,7 @@ class DCCNumber:
         """Open the DCC record in the user's browser."""
         if session is None:
             with _default_session() as session:
-                return self.open(session=session)
+                return self.open(session=session, xml=xml)
 
         url = session.dcc_record_url(self, xml=xml)
         click.launch(url)
@@ -325,7 +325,7 @@ class DCCFile:
         """
         if session is None:
             with _default_session() as session:
-                return self.fetch_file_contents(session=session)
+                return self.fetch_file_contents(record=record, session=session)
 
         self.local_path = session.file_archive_path(record, self)
 
@@ -338,6 +338,8 @@ class DCCFile:
 
             if self.local_path.exists():
                 LOGGER.info(f"Overwriting {self.local_path}")
+            else:
+                self.local_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Get the file contents from the DCC.
             with self.local_path.open("wb") as fobj:
@@ -473,7 +475,7 @@ class DCCRecord:
             record = cls._fetch_remote(dcc_number, session)
 
             # Archive if required.
-            record.archive()
+            record.archive(session=session)
 
         return record
 
@@ -545,6 +547,10 @@ class DCCRecord:
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
         """
+        if session is None:
+            with _default_session() as session:
+                return self.fetch_files(session=session)
+
         for file_ in self.files:
             file_.fetch_file_contents(record=self, session=session)
 

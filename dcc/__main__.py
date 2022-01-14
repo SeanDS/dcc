@@ -365,31 +365,28 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
 
     count = 0
 
-    def _do_fetch(number, level=0):
-        nonlocal count
-
-        record = archive.fetch_record(number, session=session)
-
-        if files:
-            record.fetch_files(session=session)
-
-        name = click.style(str(record), fg="green")
-        indent = "-" * (depth - level)
-        click.echo(f"{indent}Archived {name}")
-        count += 1
-
-        if level > 0:
-            if fetch_related:
-                for ref in record.related_to:
-                    _do_fetch(ref, level=level - 1)
-            if fetch_referencing:
-                for ref in record.referenced_by:
-                    _do_fetch(ref, level=level - 1)
-
     with state.dcc_session() as session:
-        _do_fetch(dcc_number, level=depth)
 
-    click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
+        def _do_fetch(number, level=0):
+            nonlocal count
+
+            record = archive.fetch_record(number, fetch_files=files, session=session)
+
+            name = click.style(str(record), fg="green")
+            indent = "-" * (depth - level)
+            click.echo(f"{indent}Archived {name}")
+            count += 1
+
+            if level > 0:
+                if fetch_related:
+                    for ref in record.related_to:
+                        _do_fetch(ref, level=level - 1)
+                if fetch_referencing:
+                    for ref in record.referenced_by:
+                        _do_fetch(ref, level=level - 1)
+
+        _do_fetch(dcc_number, level=depth)
+        click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
 
 
 @dcc.command()
