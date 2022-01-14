@@ -223,7 +223,14 @@ def view(ctx, dcc_number):
     archive = DCCArchive()
 
     with state.dcc_session() as session:
-        record = archive.fetch_record(dcc_number, session=session)
+        try:
+            record = archive.fetch_record(dcc_number, session=session)
+        except UnrecognisedDCCRecordError:
+            click.echo(f"Could not find DCC document {repr(dcc_number)}.", err=True)
+            sys.exit(1)
+        except (NotLoggedInError, UnauthorisedError):
+            click.echo(f"You are not authorised to access {dcc_number}.", err=True)
+            sys.exit(1)
 
         echo_key_value("number", record.dcc_number)
         echo_key_value("url", session.dcc_record_url(record.dcc_number))
@@ -303,8 +310,15 @@ def open_file(ctx, dcc_number, file_number):
     archive = DCCArchive()
 
     with state.dcc_session() as session:
-        record = archive.fetch_record(dcc_number, session=session)
-        record.fetch_files(session=session)
+        try:
+            record = archive.fetch_record(dcc_number, session=session)
+            record.fetch_files(session=session)
+        except UnrecognisedDCCRecordError:
+            click.echo(f"Could not find DCC document {repr(dcc_number)}.", err=True)
+            sys.exit(1)
+        except (NotLoggedInError, UnauthorisedError):
+            click.echo(f"You are not authorised to access {dcc_number}.", err=True)
+            sys.exit(1)
 
         for n in file_number:
             file_ = record.files[n - 1]
@@ -322,14 +336,14 @@ def open_file(ctx, dcc_number, file_number):
     help="Recursively fetch referencing documents up to this many levels.",
 )
 @click.option(
-    "--fetch-related",
+    "--fetch-related/--no-fetch-related",
     is_flag=True,
     default=True,
     show_default=True,
     help="Fetch related documents when --depth is nonzero.",
 )
 @click.option(
-    "--fetch-referencing",
+    "--fetch-referencing/--no-fetch-referencing",
     is_flag=True,
     default=False,
     show_default=True,
@@ -367,10 +381,24 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
 
     with state.dcc_session() as session:
 
+        # Codes seen.
+        seen = set()
+
         def _do_fetch(number, level=0):
             nonlocal count
 
-            record = archive.fetch_record(number, fetch_files=files, session=session)
+            try:
+                record = archive.fetch_record(
+                    number, fetch_files=files, session=session
+                )
+            except UnrecognisedDCCRecordError:
+                click.echo(f"Could not find DCC document {repr(number)}.", err=True)
+                return
+            except (NotLoggedInError, UnauthorisedError):
+                click.echo(f"You are not authorised to access {number}.", err=True)
+                return
+
+            seen.add(record.dcc_number.string_repr(version=False))
 
             name = click.style(str(record), fg="green")
             indent = "-" * (depth - level)
@@ -380,9 +408,18 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
             if level > 0:
                 if fetch_related:
                     for ref in record.related_to:
+                        # if ref.string_repr(version=False) in seen:
+                        #    continue
+
+                        click.echo(f"Fetching related {ref}")
                         _do_fetch(ref, level=level - 1)
+
                 if fetch_referencing:
                     for ref in record.referenced_by:
+                        # if ref.string_repr(version=False) in seen:
+                        #    continue
+
+                        click.echo(f"Fetching referencing {ref}")
                         _do_fetch(ref, level=level - 1)
 
         _do_fetch(dcc_number, level=depth)
@@ -453,11 +490,18 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors):
         try:
             record.update(session=session)
         except UnrecognisedDCCRecordError:
-            sys.exit(f"Could not find DCC document {repr(record.dcc_number)}.")
+            click.echo(
+                f"Could not find DCC document {repr(record.dcc_number)}.", err=True
+            )
+            sys.exit(1)
         except (NotLoggedInError, UnauthorisedError):
-            sys.exit(f"You are not authorised to modify {record.dcc_number}.")
+            click.echo(
+                f"You are not authorised to modify {record.dcc_number}.", err=True
+            )
+            sys.exit(1)
         except DryRun:
-            sys.exit("Nothing modified.")
+            click.echo("Nothing modified.")
+            sys.exit(0)
 
         # Save the document's changes locally. Set overwrite flag to ensure changes are
         # made.
