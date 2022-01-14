@@ -26,11 +26,26 @@ class DCCArchive:
     """A collection of DCC documents."""
 
     def fetch_record(self, dcc_number, fetch_files=False, session=None):
-        """Fetches a DCC record and adds it to the archive.
+        """Fetch a DCC record and adds it to the archive.
 
-        :param overwrite: whether to force a new download even if the record is in the cache
-        :param fetch_files: whether to download the files attached to the record
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber` or str
+            The DCC record to fetch.
+
+        fetch_files : bool, optional
+            Whether to also fetch the files attached to the record.
+
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
         """
+        if session is None:
+            with _default_session() as session:
+                return self.fetch_record(
+                    dcc_number=dcc_number, fetch_files=fetch_files, session=session
+                )
+
         dcc_number = DCCNumber(dcc_number)
 
         # Fetch record.
