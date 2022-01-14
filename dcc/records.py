@@ -10,7 +10,7 @@ import datetime
 import click
 import toml
 from .sessions import DCCSession
-from .parsers import DCCRecordParser
+from .parsers import DCCRecordParser, DCCXMLUpdateParser
 from .util import opened_file
 from .env import DEFAULT_HOST, DEFAULT_IDP
 from .exceptions import NoVersionError
@@ -388,24 +388,8 @@ class DCCRecord:
             LOGGER.info(f"Fetching {dcc_number} from DCC")
             record = cls._fetch_remote(dcc_number, session)
 
-            # Archive the record.
-            archive_dir = session.record_archive_dir(record.dcc_number)
-            archive_dir.mkdir(parents=True, exist_ok=True)
-            meta_file = cls._meta_file(archive_dir)
-            if session.overwrite or not meta_file.exists():
-                if meta_file.exists():
-                    LOGGER.info(f"Overwriting {meta_file}")
-
-                LOGGER.info(f"Archiving {record} metadata to {meta_file}")
-                record.write(meta_file)
-            else:
-                # Only reached if the user specified a record number without a version,
-                # but the version retrieved from the DCC already existed in the local
-                # archive.
-                LOGGER.info(
-                    f"Refusing to overwrite existing file at {meta_file}; set "
-                    f"session overwrite flag to force"
-                )
+            # Archive if required.
+            record.archive()
 
         return record
 
@@ -472,6 +456,43 @@ class DCCRecord:
         for file_ in self.files:
             file_.fetch_file_contents(record=self, session=session)
 
+    def archive(self, session=None):
+        """Serialise the record in the local archive."""
+        if session is None:
+            with _default_session() as session:
+                return self.archive(session=session)
+
+        archive_dir = session.record_archive_dir(self.dcc_number)
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        meta_file = self._meta_file(archive_dir)
+
+        if session.overwrite or not meta_file.exists():
+            if meta_file.exists():
+                LOGGER.info(f"Overwriting {meta_file}")
+
+            LOGGER.info(f"Archiving {self} metadata to {meta_file}")
+            self.write(meta_file)
+        else:
+            # Only reached if the user fetched a record number without a version,
+            # but the version retrieved from the DCC already existed in the local
+            # archive.
+            LOGGER.info(
+                f"Refusing to overwrite existing file at {meta_file}; set "
+                f"session overwrite flag to force"
+            )
+
+    def update(self, session=None):
+        """Update the remote record metadata."""
+        if session is None:
+            with _default_session() as session:
+                return self.update(session=session)
+
+        # Get the document contents from the DCC.
+        response = session.update_record_metadata(self)
+
+        # Parse the document (exceptions to be handled by calling code).
+        DCCXMLUpdateParser(response.text)
+
     def write(self, path):
         """Store the record on the file system."""
         # Create a metadata dict.
@@ -513,7 +534,7 @@ class DCCRecord:
 
     @staticmethod
     def _meta_file(target_dir):
-        return target_dir / "meta.toml"
+        return Path(target_dir) / "meta.toml"
 
     @property
     def author_names(self):

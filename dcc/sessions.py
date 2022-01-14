@@ -5,7 +5,7 @@ import logging
 from tempfile import mkdtemp
 from pathlib import Path
 from ciecplib import Session as CIECPSession
-from .exceptions import NoVersionError
+from .exceptions import NoVersionError, DryRun
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,66 +53,43 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         response.raise_for_status()
         return response
 
-    def update_record_metadata(
-        self,
-        dcc_number,
-        title=None,
-        abstract=None,
-        keywords=None,
-        note=None,
-        related=None,
-        authors=None,
-    ):
-        """Updates metadata for the DCC record specified by the provided number.
+    def update_record_metadata(self, dcc_record):
+        """Update metadata for the DCC record specified by the provided number.
 
-        The version (if any) of the provided DCC number is ignored.  Only the latest
+        The version (if any) of the provided DCC number is ignored. Only the latest
         version of the record is updated.
 
-        Returns the response of the server to the update request
+        Returns the response of the server to the update request.
 
-        :param dcc_number: DCC number to update metadata for
-        :param title: metadata field contents (None to leave unchanged)
-        :param abstract: metadata field contents (None to leave unchanged)
-        :param keywords: metadata field contents (None to leave unchanged)
-        :param note: metadata field contents (None to leave unchanged)
-        :param related: metadata field contents (None to leave unchanged)
-        :param authors: metadata field contents (None to leave unchanged)
+        :param dcc_record: the DCC record to update
         """
 
         # Build DCC "Bulk Modify" request URL.
         dcc_update_metadata_url = self._build_dcc_url("cgi-bin/private/DocDB/XMLUpdate")
 
         # Prepare form data dict with the requested updates.
-        data = self._build_dcc_metadata_form(
-            title=title,
-            abstract=abstract,
-            keywords=keywords,
-            note=note,
-            related=related,
-            authors=authors,
-        )
-        data["DocumentsField"] = dcc_number.string_repr(version=False)
+        data = self._build_dcc_metadata_form(dcc_record)
+
+        data["DocumentsField"] = dcc_record.dcc_number.string_repr(version=False)
         data["DocumentChange"] = "Change Latest Version"
 
-        # post form data and return server's response
-        return self._post_url_form_data(dcc_update_metadata_url, data)
+        # Submit form data.
+        response = self.post(dcc_update_metadata_url, data)
+        response.raise_for_status()
+        return response
 
-    def _build_dcc_metadata_form(
-        self,
-        title=None,
-        abstract=None,
-        keywords=None,
-        note=None,
-        related=None,
-        authors=None,
-    ):
-        """Builds form data representing the specified metadata update."""
+    def _build_dcc_metadata_form(self, dcc_record):
+        """Build form data representing the specified metadata update."""
+
+        # Extract data from records.
+        related = [ref.string_repr(version=False) for ref in dcc_record.related_to]
+        authors = [author.name for author in dcc_record.authors]
 
         fields = [
-            (title, "TitleField", "TitleChange"),
-            (abstract, "AbstractField", "AbstractChange"),
-            (keywords, "KeywordsField", "KeywordsChange"),
-            (note, "NotesField", "NotesChange"),
+            (dcc_record.title, "TitleField", "TitleChange"),
+            (dcc_record.abstract, "AbstractField", "AbstractChange"),
+            (dcc_record.keywords, "KeywordsField", "KeywordsChange"),
+            (dcc_record.note, "NotesField", "NotesChange"),
             (related, "RelatedDocumentsField", "RelatedDocumentsChange"),
             (authors, "authormanual", "AuthorsChange"),
         ]
@@ -129,14 +106,14 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         return data
 
     def _build_dcc_url(self, path=""):
-        """Builds a DCC URL given path."""
+        """Build DCC URL from the specified path."""
         if path:
             path = f"/{path}"
 
         return f"{self.protocol}://{self.host}{path}"
 
     def _build_dcc_author_url(self, author):
-        """Builds a DCC author page URL given the specified author.
+        """Build DCC author page URL from the specified author.
 
         :param author: author to download
         """
@@ -145,36 +122,13 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
             f"cgi-bin/private/DocDB/ListBy?authorid={author.uid}"
         )
 
-    def _post_url_form_data(self, url, data):
-        """Posts the specified form data to the specified URL.
-
-        Returns the response of the server
-
-        :param url: URL to post
-        :param data: dict containing form data
-        """
-
-        import urllib
-
-        # obtain cookies for DCC access
-        opener = self._build_url_opener()
-
-        LOGGER.info(f"Posting form data to {url}")
-
-        # convert dict to URL-encoded bytes
-        data = urllib.parse.urlencode(data).encode()
-
-        # POST request is used when form data is supplied
-        req = urllib.request.Request(url, data)
-
-        # read and return the server's response
-        return opener.open(req).read()
-
 
 class DCCSession(CIECPSession, DCCHTTPFetcher):
     """A SAML/ECP-authenticated DCC HTTP fetcher."""
 
-    def __init__(self, host, idp, archive_dir=None, overwrite=False, **kwargs):
+    def __init__(
+        self, host, idp, archive_dir=None, overwrite=False, simulate=False, **kwargs
+    ):
         # Workaround for ciecplib #86.
         DCCHTTPFetcher.__init__(self, host=host)
         CIECPSession.__init__(self, idp=idp, **kwargs)
@@ -185,6 +139,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
 
         self.archive_dir = Path(archive_dir)
         self.overwrite = overwrite
+        self.simulate = simulate
 
         LOGGER.debug(
             f"Created session at DCC host {host} using IDP {idp} using cache at "
@@ -204,3 +159,10 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
 
     def file_archive_path(self, dcc_record, dcc_file):
         return self.record_archive_dir(dcc_record.dcc_number) / dcc_file.filename
+
+    def post(self, *args, **kwargs):
+        if self.simulate:
+            LOGGER.info(f"Simulating POST: {args}, {kwargs}")
+            raise DryRun()
+
+        return super().post(*args, **kwargs)

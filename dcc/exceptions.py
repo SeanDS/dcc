@@ -42,3 +42,7 @@ class NoVersionError(Exception):
 
     def __init__(self, *args, **kwargs):
         super().__init__("The DCC number has no specified version.", *args, **kwargs)
+
+
+class DryRun(Exception):
+    """A dry run has taken place."""

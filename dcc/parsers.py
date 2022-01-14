@@ -166,42 +166,38 @@ class DCCRecordParser:
             yield field.attrib["alias"]
 
 
-class DccXmlUpdateParser:
-    """Represents a parser for DCC XMLUpdate responses."""
+class DCCXMLUpdateParser:
+    """A parser for DCC XMLUpdate responses.
+
+    :param content: DCC XMLUpdate response
+    """
 
     def __init__(self, content):
-        """Instantiates a DccXmlUpdateParser with the provided page content.
+        # Get an HTML navigator object for the record.
+        navigator = bs(content, "html.parser")
 
-        :param content: DCC XMLUpdate response HTML
-        """
-        self.content = content
-
-    def validate(self):
-        # get an HTML navigator object for the response
-        navigator = bs(self.content, "html.parser")
-
-        # accept if the page reports a successful modification
+        # Accept if the page reports a successful modification.
         if navigator.find(string=re.compile(".*You were successful.*")):
             return
 
-        # check if we have the login page, specified by the presence of an h3
-        # with specific text
+        # Check if we have the login page, specified by the presence of an h3 with
+        # specific text.
         if navigator.find("h3", text="Accessing private documents"):
             raise NotLoggedInError()
 
-        # check if we have the default page (DCC redirects here for all
-        # unrecognised requests)
+        # Check if we have the default page (DCC redirects here for all unrecognised
+        # requests).
         if navigator.find("strong", text="Search for Documents by"):
             raise UnrecognisedDCCRecordError()
 
-        # check if we have the error page
+        # Check if we have the error page.
         if navigator.find("dt", class_="Error"):
-            # we have an error, but what is its message?
+            # We have an error, but what is its message?
             if navigator.find("dd", text=re.compile(".* is invalid.*")):
-                # record number not valid
+                # Record number not valid.
                 raise ValueError("record number not valid")
             if navigator.find("dd", text=re.compile(".* is not modifiable by user.*")):
-                # unauthorised to update
+                # Unauthorised to update.
                 raise UnauthorisedError()
 
         raise UnknownError()
