@@ -58,15 +58,20 @@ class DCCNumber:
     """A DCC number including category and numeric identifier.
 
     You must either provide a string containing the DCC number, or the separate category
-    and numeric parts, with optional version, e.g.
+    and numeric parts, with optional version, e.g.:
 
-        __init__("T1234567")
-        __init__("T", "0123456") # equivalent to T0123456
-        __init__("T", "0123456", 4) # equivalent to T0123456-v4
+    >>> from dcc.records import DCCNumber
+    >>> DCCNumber("T1234567")
+    DCCNumber(category='T', numeric='1234567', version=None)
+    >>> DCCNumber("T", "1234567")
+    DCCNumber(category='T', numeric='1234567', version=None)
+    >>> DCCNumber("T", "1234567", 4)
+    DCCNumber(category='T', numeric='1234567', version=4)
 
-    :param category: category character, or the full DCC number
-    :param numeric: numeric designator of DCC document
-    :param version: version number of DCC document
+    Parameters
+    ----------
+    category, numeric, version : str, optional
+        The parts that make up the DCC number.
     """
 
     category: str
@@ -166,59 +171,97 @@ class DCCNumber:
 
     @classmethod
     def is_category_letter(cls, letter):
-        """Checks if the specified category letter is valid.
+        """Check if the specified category letter is valid.
 
-        :param letter: category letter to check
+        Parameters
+        ----------
+        letter : str
+            The category letter to check.
+
+        Returns
+        -------
+        bool
+            True if the category letter is valid; False otherwise.
         """
-
-        # check if letter is in list of valid letters
         return letter in cls._document_type_letters
 
     @staticmethod
-    def is_dcc_numeric(numeric):
-        """Checks if the specified number is a valid DCC numeral.
+    def is_dcc_numeric(numeral):
+        """Check if the specified number is a valid DCC numeral.
 
-        :param numeric: DCC numeral to check
+        Parameters
+        ----------
+        numeral : str
+            The DCC numeral to check.
+
+        Returns
+        -------
+        bool
+            True if the numeral is valid; False otherwise.
         """
-
-        # just check if the number is a positive integer
-        return int(numeric) > 0
+        return int(numeral) > 0
 
     def numbers_equal(self, other):
         """Check if the category and numeric parts of this number and the specified one
         match.
 
-        :param other: other DCC number to check match for
-        """
+        Parameters
+        ----------
+        other : :class:`.DCCNumber`
+            The other DCC number to check.
 
-        # Compare the category and number.
+        Returns
+        -------
+        bool
+            True if the other number and category match; False otherwise.
+        """
         return other.category == self.category and other.numeric == self.numeric
 
     def string_repr(self, version=True):
         """String representation of the DCC number, with optional version number.
 
-        :param version: whether to include version in string
+        Parameters
+        ----------
+        version : bool, optional
+            Include the version in the string. Defaults to True.
+
+        Returns
+        -------
+        str
+            The string representation.
         """
         version_string = self.version_suffix if version else ""
         return f"{self.category}{self.numeric}{version_string}"
 
     def has_version(self):
-        """Checks if the DCC number has a version associated with it."""
+        """Check if the DCC number has a version associated with it."""
         return self.version is not None
 
     @staticmethod
     def is_dcc_version(version):
-        """Checks if the specified version number is valid.
+        """Check if the specified version number is valid.
 
-        :param version: version to check
+        Parameters
+        ----------
+        version : int
+            The version to check.
+
+        Returns
+        -------
+        bool
+            True if the version is valid; False otherwise.
         """
-
         return int(version) >= 0
 
     @property
     def version_suffix(self):
-        """The string version suffix for the version number."""
+        """The string version suffix for the version number.
 
+        Returns
+        -------
+        str
+            The version suffix to the DCC numeral, e.g. "-v2".
+        """
         # Version 0 should end "x0", otherwise "v1" etc.
         if not self.has_version():
             return ""
@@ -254,7 +297,17 @@ class DCCFile:
         return f"{repr(self.title)} ({self.filename})"
 
     def fetch_file_contents(self, record, session=None):
-        """Fetch the file contents."""
+        """Fetch the remote file's contents.
+
+        Parameters
+        ----------
+        record : :class:`.DCCRecord`
+            The record associated with this file.
+
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+        """
         if session is None:
             with _default_session() as session:
                 return self.fetch_file_contents(session=session)
@@ -288,7 +341,15 @@ class DCCFile:
         click.launch(str(self.local_path))
 
     def write(self, path):
-        """Write file to `path`."""
+        """Write file to the file system.
+
+        Parameters
+        ----------
+        path : str, :class:`pathlib.Path`, or file-like
+            The path or file object to write to. If an open file object is given, it
+            will be written to and left open. If a path string is given, it will be
+            opened, written to, then closed.
+        """
         if self.local_path is None:
             raise FileNotFoundError(
                 f"Local copy of {self} has not yet been archived (run "
@@ -311,8 +372,6 @@ class DCCJournalRef:
     url: str
 
     def __str__(self):
-        """String representation of this journal reference."""
-
         journal = self.journal if self.journal else "Unknown journal"
         volume = self.volume if self.volume else "?"
         page = self.page if self.page else "?"
@@ -352,11 +411,21 @@ class DCCRecord:
 
     @classmethod
     def fetch(cls, dcc_number, session=None):
-        """Fetches and creates a new DCC record.
+        """Fetch and create a DCC record.
 
-        Optionally downloads associated files.
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber` or str
+            The DCC record to fetch.
 
-        :param dcc_number: DCC number associated with the record to fetch
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+
+        Returns
+        -------
+        :class:`.DCCRecord`
+            The fetched record.
         """
         if session is None:
             with _default_session() as session:
@@ -453,11 +522,26 @@ class DCCRecord:
         )
 
     def fetch_files(self, session=None):
+        """Fetch files attached to this record.
+
+        Parameters
+        ----------
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+        """
         for file_ in self.files:
             file_.fetch_file_contents(record=self, session=session)
 
     def archive(self, session=None):
-        """Serialise the record in the local archive."""
+        """Serialise the record in the local archive.
+
+        Parameters
+        ----------
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+        """
         if session is None:
             with _default_session() as session:
                 return self.archive(session=session)
@@ -482,7 +566,14 @@ class DCCRecord:
             )
 
     def update(self, session=None):
-        """Update the remote record metadata."""
+        """Update the remote record metadata.
+
+        Parameters
+        ----------
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+        """
         if session is None:
             with _default_session() as session:
                 return self.update(session=session)
@@ -494,7 +585,15 @@ class DCCRecord:
         DCCXMLUpdateParser(response.text)
 
     def write(self, path):
-        """Store the record on the file system."""
+        """Write record to the file system.
+
+        Parameters
+        ----------
+        path : str, :class:`pathlib.Path`, or file-like
+            The path or file object to write to. If an open file object is given, it
+            will be written to and left open. If a path string is given, it will be
+            opened, written to, then closed.
+        """
         # Create a metadata dict.
         item = dict(__schema__="1.0.0")  # Do this first so it's at the top of the file.
         item.update(asdict(self))
@@ -510,7 +609,18 @@ class DCCRecord:
 
     @classmethod
     def read(cls, target_dir):
-        """Read the record from the file system."""
+        """Read record from the file system.
+
+        Parameters
+        ----------
+        target_dir : str or :class:`pathlib.Path`
+            The path to read from.
+
+        Returns
+        -------
+        :class:`.DCCRecord`
+            The record.
+        """
         meta_file = cls._meta_file(target_dir)
         with meta_file.open("r") as fobj:
             LOGGER.debug(f"Reading metadata from {meta_file}.")
@@ -538,13 +648,25 @@ class DCCRecord:
 
     @property
     def author_names(self):
-        """Returns a list of author names associated with this record."""
+        """The names of the authors associated with this record.
+
+        Returns
+        -------
+        list
+            The author names.
+        """
 
         return [author.name for author in self.authors]
 
     @property
     def version_numbers(self):
-        """Returns versions associated with this record."""
+        """The versions associated with this record.
+
+        Returns
+        -------
+        list
+            The versions.
+        """
 
         versions = set(self.other_versions)
         versions.add(self.dcc_number.version)
@@ -553,13 +675,25 @@ class DCCRecord:
 
     @property
     def filenames(self):
-        """Returns a list of filenames associated with this record."""
+        """The filenames associated with this record.
+
+        Returns
+        -------
+        list
+            The filenames.
+        """
 
         return [str(file_) for file_ in self.files]
 
     @property
     def latest_version_number(self):
-        """The latest version number for this record."""
+        """The latest version number for this record.
+
+        Returns
+        -------
+        int
+            The latest version number.
+        """
 
         # find highest other version
         max_other_version = max(self.other_versions)
@@ -571,14 +705,34 @@ class DCCRecord:
         return self.dcc_number.version
 
     def is_latest_version(self):
+        """Check if the current record is the latest version.
+
+        Note: this only checks the current record instance represents the latest known
+        local record. The remote record is not fetched.
+
+        Returns
+        -------
+        bool
+            True if the current version is the latest; False otherwise.
+        """
         return self.dcc_number.version is self.latest_version_number
 
     def refenced_by_titles(self):
-        """Titles of documents referencing this one."""
+        """The titles of the records referencing this record.
 
+        Returns
+        -------
+        list
+            The titles.
+        """
         return [str(record) for record in self.referenced_by]
 
     def related_titles(self):
-        """Titles of documents related to this one."""
+        """The titles of the records related to this record.
 
+        Returns
+        -------
+        list
+            The titles.
+        """
         return [str(record) for record in self.related]

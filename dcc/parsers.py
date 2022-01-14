@@ -18,7 +18,10 @@ from .exceptions import (
 class DCCRecordParser:
     """A parser for DCC XML documents.
 
-    :param content: DCC record page XML
+    Parameters
+    ----------
+    content : str
+        The response body.
     """
 
     def __init__(self, content):
@@ -169,7 +172,10 @@ class DCCRecordParser:
 class DCCXMLUpdateParser:
     """A parser for DCC XMLUpdate responses.
 
-    :param content: DCC XMLUpdate response
+    Parameters
+    ----------
+    content : str
+        The response body.
     """
 
     def __init__(self, content):

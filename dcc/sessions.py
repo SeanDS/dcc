@@ -11,7 +11,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DCCHTTPFetcher(metaclass=abc.ABCMeta):
-    """An HTTP fetcher for DCC documents."""
+    """An HTTP fetcher for DCC documents.
+
+    Parameters
+    ----------
+    host : str
+        The DCC host to use.
+    """
 
     # Transport protocol.
     protocol = "https"
@@ -25,10 +31,20 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     def dcc_record_url(self, dcc_number, xml=True):
-        """Builds a DCC record base URL given the specified DCC number.
+        """Build a DCC record URL given the specified DCC number.
 
-        :param dcc_number: number of DCC record to download
-        :param xml: whether to append the XML request string
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC record.
+
+        xml : bool, optional
+            Whether to make the URL an XML request.
+
+        Returns
+        -------
+        str
+            The URL.
         """
         pieces = [dcc_number.category, dcc_number.numeric, dcc_number.version_suffix]
         if xml:
@@ -36,18 +52,37 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         return self._build_dcc_url("".join(pieces))
 
     def fetch_record_page(self, dcc_number):
-        """Fetches the DCC record page specified by the provided number.
+        """Fetch a DCC record page.
 
-        :param dcc_number: DCC number to fetch record for
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC record.
+
+        Returns
+        -------
+        :class:`requests.Response`
+            The HTTP response.
         """
         response = self.get(self.dcc_record_url(dcc_number))
         response.raise_for_status()
         return response
 
     def fetch_file_contents(self, dcc_file, stream=True):
-        """Fetch the file associated with the specified file.
+        """Fetch the contents of the specified file.
 
-        :param dcc_file: file to stream data for
+        Parameters
+        ----------
+        dcc_file : :class:`.DCCFile`
+            The DCC file.
+
+        stream : bool, optional
+            Whether to stream the response. Defaults to True.
+
+        Returns
+        -------
+        :class:`requests.Response`
+            The HTTP response.
         """
         response = self.get(dcc_file.url, stream=stream)
         response.raise_for_status()
@@ -59,9 +94,15 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         The version (if any) of the provided DCC number is ignored. Only the latest
         version of the record is updated.
 
-        Returns the response of the server to the update request.
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC record.
 
-        :param dcc_record: the DCC record to update
+        Returns
+        -------
+        :class:`requests.Response`
+            The HTTP response.
         """
 
         # Build DCC "Bulk Modify" request URL.
@@ -124,7 +165,28 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
 
 
 class DCCSession(CIECPSession, DCCHTTPFetcher):
-    """A SAML/ECP-authenticated DCC HTTP fetcher."""
+    """A SAML/ECP-authenticated DCC HTTP fetcher.
+
+    Parameters
+    ----------
+    host : str
+        The DCC host to use.
+
+    idp : str
+        The identity provider host to use.
+
+    archive_dir : str or :class:`pathlib.Path`, optional
+        The archive directory to store retrieved records and files in. Defaults to a
+        temporary directory.
+
+    overwrite : bool, optional
+        Whether to overwrite existing records and files in the archive with those
+        fetched remotely. Defaults to False.
+
+    simulate : bool, optional
+        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
+        exception.
+    """
 
     def __init__(
         self, host, idp, archive_dir=None, overwrite=False, simulate=False, **kwargs
@@ -147,6 +209,21 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         )
 
     def document_archive_dir(self, dcc_number):
+        """The archive directory for the specified DCC number, without a particular
+        version.
+
+        This directory is used to store versioned DCC numbers.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC number.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            The document archive directory.
+        """
         # We require an archive directory and version.
         if not dcc_number.has_version():
             raise NoVersionError()
@@ -154,10 +231,40 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         return self.archive_dir / dcc_number.string_repr(version=False)
 
     def record_archive_dir(self, dcc_number):
+        """The archive directory for the specified DCC number, with a particular
+        version.
+
+        This directory is used to store data for a particular version of a DCC record.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC number.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            The record archive directory.
+        """
         document_path = self.document_archive_dir(dcc_number)
         return document_path / dcc_number.string_repr(version=True)
 
     def file_archive_path(self, dcc_record, dcc_file):
+        """The archive directory for the specified DCC file.
+
+        Parameters
+        ----------
+        dcc_record : :class:`.DCCRecord`
+            The DCC record.
+
+        dcc_file : :class:`.DCCFile`
+            The DCC file.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            The archive file..
+        """
         return self.record_archive_dir(dcc_record.dcc_number) / dcc_file.filename
 
     def post(self, *args, **kwargs):
@@ -166,3 +273,5 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
             raise DryRun()
 
         return super().post(*args, **kwargs)
+
+    post.__doc__ = CIECPSession.post.__doc__
