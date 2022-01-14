@@ -408,18 +408,16 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
             if level > 0:
                 if fetch_related:
                     for ref in record.related_to:
-                        # if ref.string_repr(version=False) in seen:
-                        #    continue
+                        if ref.string_repr(version=False) in seen:
+                            continue
 
-                        click.echo(f"Fetching related {ref}")
                         _do_fetch(ref, level=level - 1)
 
                 if fetch_referencing:
                     for ref in record.referenced_by:
-                        # if ref.string_repr(version=False) in seen:
-                        #    continue
+                        if ref.string_repr(version=False) in seen:
+                            continue
 
-                        click.echo(f"Fetching referencing {ref}")
                         _do_fetch(ref, level=level - 1)
 
         _do_fetch(dcc_number, level=depth)
