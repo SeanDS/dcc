@@ -41,9 +41,6 @@ class DCCArchive:
 
         return record
 
-    def load_record(self, dcc_number, session=None):
-        return DCCRecord.load(session=session)
-
 
 @dataclass
 class DCCAuthor:
@@ -158,6 +155,15 @@ class DCCNumber:
         self.numeric = numeric
         self.version = version
 
+    def open(self, session=None, xml=False):
+        """Open the DCC record in the user's browser."""
+        if session is None:
+            with _default_session() as session:
+                return self.open(session=session)
+
+        url = session.dcc_record_url(self, xml=xml)
+        click.launch(url)
+
     @classmethod
     def is_category_letter(cls, letter):
         """Checks if the specified category letter is valid.
@@ -220,17 +226,6 @@ class DCCNumber:
             return "-x0"
         else:
             return f"-v{self.version}"
-
-    def url_path(self, xml=False):
-        """Returns the URL path that represents this DCC number.
-
-        :param xml: whether to append the XML request string
-        """
-
-        xml_suffix = "/of=xml" if xml else ""
-
-        # Return the URL with appropriate version suffix.
-        return f"{self.category}{self.numeric}{self.version_suffix}{xml_suffix}"
 
     def __str__(self):
         return self.string_repr(version=True)
@@ -510,9 +505,9 @@ class DCCRecord:
         if "files" in item:
             item["files"] = [DCCFile(**filedata) for filedata in item["files"]]
         if "referenced_by" in item:
-            item["referenced_by"] = [DCCNumber(ref) for ref in item["referenced_by"]]
+            item["referenced_by"] = [DCCNumber(**ref) for ref in item["referenced_by"]]
         if "related_ids" in item:
-            item["related_ids"] = [DCCNumber(ref) for ref in item["related_ids"]]
+            item["related_ids"] = [DCCNumber(**ref) for ref in item["related_ids"]]
 
         return DCCRecord(**item)
 

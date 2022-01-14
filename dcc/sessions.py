@@ -24,21 +24,23 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
     def get(self, url):
         raise NotImplementedError
 
-    def _dcc_record_url(self, dcc_number, xml=True):
+    def dcc_record_url(self, dcc_number, xml=True):
         """Builds a DCC record base URL given the specified DCC number.
 
         :param dcc_number: number of DCC record to download
         :param xml: whether to append the XML request string
         """
-
-        return self._build_dcc_url(dcc_number.url_path(xml=xml))
+        pieces = [dcc_number.category, dcc_number.numeric, dcc_number.version_suffix]
+        if xml:
+            pieces.append("/of=xml")
+        return self._build_dcc_url("".join(pieces))
 
     def fetch_record_page(self, dcc_number):
         """Fetches the DCC record page specified by the provided number.
 
         :param dcc_number: DCC number to fetch record for
         """
-        response = self.get(self._dcc_record_url(dcc_number))
+        response = self.get(self.dcc_record_url(dcc_number))
         response.raise_for_status()
         return response
 
