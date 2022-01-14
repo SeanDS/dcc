@@ -7,6 +7,12 @@ from datetime import datetime
 import xml.etree.ElementTree as ET
 import pytz
 from bs4 import BeautifulSoup as bs
+from .exceptions import (
+    NotLoggedInError,
+    UnrecognisedDCCRecordError,
+    UnauthorisedError,
+    UnknownError,
+)
 
 
 class DCCRecordParser:
@@ -28,12 +34,12 @@ class DCCRecordParser:
             # Check if we have the login page, specified by the presence of an h3 with
             # specific text.
             if navigator.find("h3", text="Accessing private documents"):
-                raise NotLoggedInException()
+                raise NotLoggedInError()
 
             # Check if we have the default page (DCC redirects here for all unrecognised
             # requests).
             if navigator.find("strong", text="Search for Documents by"):
-                raise UnrecognisedDCCRecordException()
+                raise UnrecognisedDCCRecordError()
 
             # Check if we have the error page.
             if navigator.find("dt", class_="Error"):
@@ -44,15 +50,14 @@ class DCCRecordParser:
                         "User .*? is not authorized to view this document."
                     ),
                 ):
-                    # Unauthorised to view.
-                    raise UnauthorisedAccessException()
+                    # Unauthorised.
+                    raise UnauthorisedError()
 
-            # Unknown error.
-            raise UnknownDccErrorException()
+            raise UnknownError()
 
         if not self.root.attrib["project"] == "LIGO":
             # Invalid DCC document.
-            raise InvalidDCCXMLDocumentException()
+            raise UnrecognisedDCCRecordError()
 
         self.doc = self.root[0]
         self.docrev = self.doc[0]
@@ -157,12 +162,8 @@ class DCCRecordParser:
 
     def _extract_refs(self, field):
         for field in self.docrev.findall(field):
-            docid = field.attrib["docid"]
-            version = field.attrib.get("version")
-            if version:
-                version = int(version)
-
-            yield docid, version
+            # Extract the DCC number.
+            yield field.attrib["alias"]
 
 
 class DccXmlUpdateParser:
@@ -186,77 +187,21 @@ class DccXmlUpdateParser:
         # check if we have the login page, specified by the presence of an h3
         # with specific text
         if navigator.find("h3", text="Accessing private documents"):
-            raise NotLoggedInException()
+            raise NotLoggedInError()
 
         # check if we have the default page (DCC redirects here for all
         # unrecognised requests)
         if navigator.find("strong", text="Search for Documents by"):
-            raise UnrecognisedDCCRecordException()
+            raise UnrecognisedDCCRecordError()
 
         # check if we have the error page
         if navigator.find("dt", class_="Error"):
             # we have an error, but what is its message?
             if navigator.find("dd", text=re.compile(".* is invalid.*")):
                 # record number not valid
-                raise DCCNumberNotFoundException()
+                raise ValueError("record number not valid")
             if navigator.find("dd", text=re.compile(".* is not modifiable by user.*")):
                 # unauthorised to update
-                raise UnauthorisedAccessException()
+                raise UnauthorisedError()
 
-        # unknown error
-        raise UnknownDccErrorException()
-
-
-class DCCNumberNotFoundException(Exception):
-    """Exception for when a DCC number is not found."""
-
-
-class NotLoggedInException(Exception):
-    """Exception for when the user is not logged in."""
-
-    def __init__(self, *args, **kwargs):
-        """Constructs a not logged in exception."""
-
-        # call parent constructor with the error message
-        super(NotLoggedInException, self).__init__(
-            "You are not logged in to the DCC, or the specified cookie string is "
-            "invalid (see the README for more information)",
-            *args,
-            **kwargs
-        )
-
-
-class UnrecognisedDCCRecordException(Exception):
-    """Exception for when a page is not recognised by the DCC server."""
-
-
-class UnauthorisedAccessException(Exception):
-    """Exception for when a document is not available to the user to be viewed."""
-
-
-class InvalidDCCXMLDocumentException(Exception):
-    """Exception for when a document is not a valid LIGO DCC XML record."""
-
-    def __init__(self, *args, **kwargs):
-        """Constructs an invalid LIGO DCC XML record exception."""
-
-        # call parent constructor with the error message
-        super(InvalidDCCXMLDocumentException, self).__init__(
-            "The document was retrieved, but is not a valid LIGO DCC XML record",
-            *args,
-            **kwargs
-        )
-
-
-class UnknownDccErrorException(Exception):
-    """Exception for when an unknown error is reported by the DCC."""
-
-    def __init__(self, *args, **kwargs):
-        """Constructs an unknown exception."""
-
-        # call parent constructor with the error message
-        super(UnknownDccErrorException, self).__init__(
-            "An unknown error occurred; please report this to the developers",
-            *args,
-            **kwargs
-        )
+        raise UnknownError()

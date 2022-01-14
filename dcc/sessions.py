@@ -1,11 +1,11 @@
-"""Communication with the DCC.
-
-TODO: this should also do caching
-"""
+"""Communication with the DCC."""
 
 import abc
 import logging
+from tempfile import mkdtemp
+from pathlib import Path
 from ciecplib import Session as CIECPSession
+from .exceptions import NoVersionError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         response.raise_for_status()
         return response
 
-    def fetch_file(self, dcc_file, stream=True):
+    def fetch_file_contents(self, dcc_file, stream=True):
         """Fetch the file associated with the specified file.
 
         :param dcc_file: file to stream data for
@@ -171,3 +171,34 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
 
 class DCCSession(CIECPSession, DCCHTTPFetcher):
     """A SAML/ECP-authenticated DCC HTTP fetcher."""
+
+    def __init__(self, host, idp, archive_dir=None, overwrite=False, **kwargs):
+        # Workaround for ciecplib #86.
+        DCCHTTPFetcher.__init__(self, host=host)
+        CIECPSession.__init__(self, idp=idp, **kwargs)
+
+        if archive_dir is None:
+            # Use a temporary directory.
+            archive_dir = mkdtemp(prefix="dcc-")
+
+        self.archive_dir = Path(archive_dir)
+        self.overwrite = overwrite
+
+        LOGGER.debug(
+            f"Created session at DCC host {host} using IDP {idp} using cache at "
+            f"{self.archive_dir.resolve()}"
+        )
+
+    def document_archive_dir(self, dcc_number):
+        # We require an archive directory and version.
+        if not dcc_number.has_version():
+            raise NoVersionError()
+
+        return self.archive_dir / dcc_number.string_repr(version=False)
+
+    def record_archive_dir(self, dcc_number):
+        document_path = self.document_archive_dir(dcc_number)
+        return document_path / dcc_number.string_repr(version=True)
+
+    def file_archive_path(self, dcc_record, dcc_file):
+        return self.record_archive_dir(dcc_record.dcc_number) / dcc_file.filename
