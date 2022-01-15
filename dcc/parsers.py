@@ -166,7 +166,11 @@ class DCCRecordParser:
     def _extract_refs(self, field):
         for field in self.docrev.findall(field):
             # Extract the DCC number.
-            yield field.attrib["alias"]
+            # Note some xref elements don't have an alias, e.g. M950046; these are
+            # ignored.
+            alias = field.attrib.get("alias")
+            if alias:
+                yield alias
 
 
 class DCCXMLUpdateParser:
