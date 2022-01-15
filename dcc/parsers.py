@@ -6,17 +6,16 @@ from functools import cached_property
 from datetime import datetime
 import xml.etree.ElementTree as ET
 import pytz
-from bs4 import BeautifulSoup as bs
+from bs4 import BeautifulSoup
 from .exceptions import (
     NotLoggedInError,
     UnrecognisedDCCRecordError,
     UnauthorisedError,
-    UnknownError,
 )
 
 
-class DCCRecordParser:
-    """A parser for DCC XML documents.
+class DCCParser:
+    """A parser for DCC documents.
 
     Parameters
     ----------
@@ -25,14 +24,55 @@ class DCCRecordParser:
     """
 
     def __init__(self, content):
+        self.content = content
+
+    def html_navigator(self):
+        """An HTML navigator for the document content.
+
+        Returns
+        -------
+        :class:`bs4.BeautifulSoup`
+            The HTML navigator.
+        """
+        return BeautifulSoup(self.content, "html.parser")
+
+    def html_dcc_numbers(self):
+        """Potential DCC numbers contained within the text of the document.
+
+        Yields
+        ------
+        str
+            A potential DCC number.
+        """
+        from .records import DCCNumber
+
+        available_letters = "".join(DCCNumber.document_type_letters)
+        dcc_number_pattern = re.compile(
+            fr"^(LIGO-)?[{available_letters}]\d{{5,}}(-(x0|v\d+))?$"
+        )
+
+        navigator = self.html_navigator()
+        for text in navigator.find_all(text=True):
+            for word in text.strip().split():
+                if dcc_number_pattern.match(word):
+                    yield word
+
+
+class DCCXMLRecordParser(DCCParser):
+    """A parser for DCC XML record documents."""
+
+    def __init__(self, content):
+        super().__init__(content)
+        self.docrev = None
+        self._parse()
+
+    def _parse(self):
         try:
-            self.root = ET.fromstring(content)
+            self.root = ET.fromstring(self.content)
         except ET.ParseError:
             # This is not an XML document. Do we have an error page instead? Use the
             # HTML parser to find out.
-
-            # Get an HTML navigator object for the record.
-            navigator = bs(content, "html.parser")
+            navigator = self.html_navigator()
 
             # Check if we have the login page, specified by the presence of an h3 with
             # specific text.
@@ -56,14 +96,13 @@ class DCCRecordParser:
                     # Unauthorised.
                     raise UnauthorisedError()
 
-            raise UnknownError()
+            raise
 
         if not self.root.attrib["project"] == "LIGO":
             # Invalid DCC document.
             raise UnrecognisedDCCRecordError()
 
-        self.doc = self.root[0]
-        self.docrev = self.doc[0]
+        self.docrev = self.root[0][0]
 
     @cached_property
     def dcc_number_pieces(self):
@@ -173,18 +212,12 @@ class DCCRecordParser:
                 yield alias
 
 
-class DCCXMLUpdateParser:
-    """A parser for DCC XMLUpdate responses.
+class DCCXMLUpdateParser(DCCParser):
+    """A parser for DCC XMLUpdate responses."""
 
-    Parameters
-    ----------
-    content : str
-        The response body.
-    """
-
-    def __init__(self, content):
+    def _parse(self):
         # Get an HTML navigator object for the record.
-        navigator = bs(content, "html.parser")
+        navigator = self.html_navigator()
 
         # Accept if the page reports a successful modification.
         if navigator.find(string=re.compile(".*You were successful.*")):
@@ -210,4 +243,4 @@ class DCCXMLUpdateParser:
                 # Unauthorised to update.
                 raise UnauthorisedError()
 
-        raise UnknownError()
+        raise Exception("Invalid XML update document")

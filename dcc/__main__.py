@@ -8,6 +8,7 @@ import click
 from . import __version__, PROGRAM, DESCRIPTION
 from .records import DCCArchive, DCCNumber, DCCAuthor
 from .sessions import DCCSession
+from .parsers import DCCParser
 from .env import DEFAULT_HOST, DEFAULT_IDP
 from .exceptions import (
     NotLoggedInError,
@@ -151,6 +152,46 @@ idp_host_option = click.option(
 )
 
 
+def echo_key(key, separator=True, nl=True):
+    key = click.style(key, fg="green")
+    if separator:
+        key = f"{key}: "
+    click.echo(key, nl=nl)
+
+
+def echo_value(value):
+    click.echo(value)
+
+
+def echo_key_value(key, value):
+    echo_key(key, separator=True, nl=False)
+    echo_value(value)
+
+
+def echo_record(record, session):
+    echo_key_value("number", record.dcc_number)
+    echo_key_value("url", session.dcc_record_url(record.dcc_number))
+    echo_key_value("title", record.title)
+    echo_key_value("modified", record.contents_revision_date)
+    echo_key_value(
+        "authors", ", ".join([author.name.strip() for author in record.authors])
+    )
+    echo_key("abstract")
+    if record.abstract:
+        echo_value(html2text(record.abstract).strip())
+    echo_key("note")
+    if record.note:
+        echo_value(html2text(record.note).strip())
+    echo_key_value("keywords", ", ".join(record.keywords))
+    echo_key("files")
+    for i, file_ in enumerate(record.files, start=1):
+        echo_value(f"{i}. {file_}")
+    echo_key_value(
+        "referenced by", ", ".join([str(ref) for ref in record.referenced_by])
+    )
+    echo_key_value("related to", ", ".join([str(ref) for ref in record.related_to]))
+
+
 def _archive_record(
     archive, dcc_number, depth, fetch_related, fetch_referencing, files, session
 ):
@@ -213,8 +254,8 @@ class _State:
     MAX_VERBOSITY = logging.DEBUG
 
     def __init__(self):
-        self.dcc_host = None
-        self.idp_host = None
+        self.dcc_host = DEFAULT_HOST
+        self.idp_host = DEFAULT_IDP
         self.archive_dir = None
         self.prefer_archive = None
         self.overwrite = None
@@ -255,22 +296,6 @@ class _State:
         return self.verbosity <= logging.INFO
 
 
-def echo_key(key, separator=True, nl=True):
-    key = click.style(key, fg="green")
-    if separator:
-        key = f"{key}: "
-    click.echo(key, nl=nl)
-
-
-def echo_value(value):
-    click.echo(value)
-
-
-def echo_key_value(key, value):
-    echo_key(key, separator=True, nl=False)
-    echo_value(value)
-
-
 @click.group(name=PROGRAM, help=DESCRIPTION)
 @click.version_option(version=__version__, prog_name=PROGRAM)
 def dcc():
@@ -308,28 +333,7 @@ def view(ctx, dcc_number):
             click.echo(f"You are not authorised to access {dcc_number}.", err=True)
             sys.exit(1)
 
-        echo_key_value("number", record.dcc_number)
-        echo_key_value("url", session.dcc_record_url(record.dcc_number))
-        echo_key_value("title", record.title)
-        echo_key_value("modified", record.contents_revision_date)
-        echo_key_value(
-            "authors", ", ".join([author.name.strip() for author in record.authors])
-        )
-        echo_key("abstract")
-        if record.abstract:
-            echo_value(html2text(record.abstract).strip())
-        echo_key("note")
-        if record.note:
-            echo_value(html2text(record.note).strip())
-        echo_key_value("keywords", ", ".join(record.keywords))
-        echo_key("files")
-        for i, file_ in enumerate(record.files, start=1):
-            echo_value(f"{i}. {file_}")
-        echo_key_value(
-            "referenced by", ", ".join([str(ref) for ref in record.referenced_by])
-        )
-        echo_key_value("related to", ", ".join([str(ref) for ref in record.related_to]))
-        click.echo()
+        echo_record(record, session)
 
 
 @dcc.command()
@@ -458,6 +462,102 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
         count = _archive_record(
             archive, dcc_number, depth, fetch_related, fetch_referencing, files, session
         )
+
+    click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
+
+
+@dcc.command()
+@archive_dir_option
+@verbose_option
+@quiet_option
+@click.pass_context
+def list_archive(ctx):
+    """List records in the archive."""
+    state = ctx.ensure_object(_State)
+    archive = DCCArchive()
+
+    if state.archive_dir is None:
+        click.echo(
+            click.style(
+                "Warning: -s/--archive-dir not specified. Archive will be empty.",
+                fg="yellow",
+            )
+        )
+
+    with state.dcc_session() as session:
+        for record in archive.records(session):
+            echo_record(record, session)
+            click.echo()
+
+
+@dcc.command()
+@click.argument("url", type=str)
+@click.option(
+    "--depth",
+    type=click.IntRange(min=0),
+    default=0,
+    show_default=True,
+    help="Recursively fetch referencing documents up to this many levels.",
+)
+@click.option(
+    "--fetch-related/--no-fetch-related",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Fetch related documents when --depth is nonzero.",
+)
+@click.option(
+    "--fetch-referencing/--no-fetch-referencing",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Fetch referencing documents when --depth is nonzero.",
+)
+@click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
+@archive_dir_option
+@prefer_archive_option
+@force_option
+@dcc_host_option
+@idp_host_option
+@verbose_option
+@quiet_option
+@click.pass_context
+def scrape(ctx, url, depth, fetch_related, fetch_referencing, files):
+    """Scrape URL for DCC records.
+
+    URL should be a DCC record designation such as D040105.
+
+    It is recommended to specify -s/--archive-dir in order to persist downloaded data
+    across invocations of this tool.
+    """
+    state = ctx.ensure_object(_State)
+    archive = DCCArchive()
+
+    if state.archive_dir is None:
+        click.echo(
+            click.style(
+                "Warning: -s/--archive-dir not specified. Records will be archived to "
+                "a temporary directory.",
+                fg="yellow",
+            )
+        )
+
+    with state.dcc_session() as session:
+        response = session.get(url)
+        parsed = DCCParser(response.text)
+
+        count = 0
+
+        for dcc_number in parsed.html_dcc_numbers():
+            count += _archive_record(
+                archive,
+                dcc_number,
+                depth,
+                fetch_related,
+                fetch_referencing,
+                files,
+                session,
+            )
 
     click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
 

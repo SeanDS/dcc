@@ -11,7 +11,7 @@ import datetime
 import click
 import toml
 from .sessions import DCCSession
-from .parsers import DCCRecordParser, DCCXMLUpdateParser
+from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file
 from .env import DEFAULT_HOST, DEFAULT_IDP
 
@@ -24,6 +24,36 @@ def _default_session():
 
 class DCCArchive:
     """A collection of DCC documents."""
+
+    def records(self, session=None):
+        """Records in the archive.
+
+        Parameters
+        ----------
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+
+        Yields
+        ------
+        :class:`.DCCRecord`
+            The latest version of a record in the archive.
+        """
+        if session is None:
+            with _default_session() as session:
+                return self.records(session=session)
+
+        for path in session.archive_dir.iterdir():
+            if not path.is_dir():
+                continue
+
+            # Try to parse document.
+            try:
+                yield self.fetch_latest_record(path.name, session=session)
+            except Exception as e:
+                print(e)
+                # Not a valid document directory, or empty.
+                pass
 
     def fetch_record(self, dcc_number, fetch_files=False, session=None):
         """Fetch a DCC record and adds it to the archive.
@@ -55,6 +85,45 @@ class DCCArchive:
             record.fetch_files(session=session)
 
         return record
+
+    @classmethod
+    def fetch_latest_record(cls, dcc_number, session=None):
+        """Fetch the latest DCC record from the archive.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber` or str
+            The DCC record to fetch.
+
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+        """
+        if session is None:
+            with _default_session() as session:
+                return cls.fetch_latest_record(dcc_number=dcc_number, session=session)
+
+        dcc_number = DCCNumber(dcc_number)
+        document_dir = session.document_archive_dir(dcc_number)
+
+        if document_dir.exists():
+            records = []
+
+            for path in document_dir.iterdir():
+                if not path.is_dir():
+                    continue
+
+                # Try to parse as a record.
+                try:
+                    records.append(DCCRecord.read(path))
+                except Exception:
+                    pass
+
+            if records:
+                # Return the record with the latest version.
+                return max(records, key=lambda record: record.dcc_number)
+
+        raise FileNotFoundError(f"No archived record exists for {dcc_number}.")
 
 
 @dataclass
@@ -95,7 +164,7 @@ class DCCNumber:
     version: int = None
 
     # DCC document type designators and descriptions.
-    _document_type_letters = {
+    document_type_letters = {
         "A": "Acquisitions",
         "C": "Contractual or procurement",
         "D": "Drawings",
@@ -201,7 +270,7 @@ class DCCNumber:
         bool
             True if the category letter is valid; False otherwise.
         """
-        return letter in cls._document_type_letters
+        return letter in cls.document_type_letters
 
     @staticmethod
     def is_dcc_numeric(numeral):
@@ -475,7 +544,7 @@ class DCCRecord:
                     "session's prefer_archive flag)."
                 )
                 try:
-                    return cls._fetch_latest_archive(dcc_number, session=session)
+                    return DCCArchive.fetch_latest_record(dcc_number, session=session)
                 except FileNotFoundError:
                     LOGGER.info("No archived record of any version exists.")
             else:
@@ -515,7 +584,7 @@ class DCCRecord:
         response = session.fetch_record_page(dcc_number)
 
         # Parse the document.
-        parsed = DCCRecordParser(response.text)
+        parsed = DCCXMLRecordParser(response.text)
         parsed_dcc_number = DCCNumber(*parsed.dcc_number_pieces)
 
         # Make sure the record matches the request.
@@ -567,29 +636,6 @@ class DCCRecord:
             referenced_by=[DCCNumber(ref) for ref in parsed.referencing_ids],
             related_to=[DCCNumber(ref) for ref in parsed.related_ids],
         )
-
-    @classmethod
-    def _fetch_latest_archive(cls, dcc_number, session):
-        document_dir = session.document_archive_dir(dcc_number)
-
-        if document_dir.exists():
-            records = []
-
-            for path in document_dir.iterdir():
-                if not path.is_dir():
-                    continue
-
-                # Try to parse as a record.
-                try:
-                    records.append(cls.read(path))
-                except Exception:
-                    pass
-
-            if records:
-                # Return the record with the latest version.
-                return max(records, key=lambda record: record.dcc_number)
-
-        raise FileNotFoundError(f"No archived record exists for {dcc_number}.")
 
     def fetch_files(self, session=None):
         """Fetch files attached to this record.

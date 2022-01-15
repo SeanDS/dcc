@@ -26,17 +26,6 @@ class UnauthorisedError(Exception):
         )
 
 
-class UnknownError(Exception):
-    """Error for when an unknown error is reported by the DCC."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(
-            "An unknown error occurred; please report this to the developers.",
-            *args,
-            **kwargs
-        )
-
-
 class NoVersionError(Exception):
     """Exception for when a DCC number has not got a version specified."""
 
