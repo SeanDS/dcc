@@ -179,6 +179,10 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         The archive directory to store retrieved records and files in. Defaults to a
         temporary directory.
 
+    prefer_archive : bool, optional
+        Whether to prefer the archive over fetching latest remote records. Defaults to
+        False.
+
     overwrite : bool, optional
         Whether to overwrite existing records and files in the archive with those
         fetched remotely. Defaults to False.
@@ -189,7 +193,14 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
     """
 
     def __init__(
-        self, host, idp, archive_dir=None, overwrite=False, simulate=False, **kwargs
+        self,
+        host,
+        idp,
+        archive_dir=None,
+        prefer_archive=False,
+        overwrite=False,
+        simulate=False,
+        **kwargs,
     ):
         # Workaround for ciecplib #86.
         DCCHTTPFetcher.__init__(self, host=host)
@@ -200,6 +211,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
             archive_dir = mkdtemp(prefix="dcc-")
 
         self.archive_dir = Path(archive_dir)
+        self.prefer_archive = prefer_archive
         self.overwrite = overwrite
         self.simulate = simulate
 
@@ -212,7 +224,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         """The archive directory for the specified DCC number, without a particular
         version.
 
-        This directory is used to store versioned DCC numbers.
+        This directory is used to store versioned records.
 
         Parameters
         ----------
@@ -224,10 +236,6 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         :class:`pathlib.Path`
             The document archive directory.
         """
-        # We require an archive directory and version.
-        if not dcc_number.has_version():
-            raise NoVersionError()
-
         return self.archive_dir / dcc_number.string_repr(version=False)
 
     def record_archive_dir(self, dcc_number):
@@ -246,6 +254,10 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         :class:`pathlib.Path`
             The record archive directory.
         """
+        # We require a version.
+        if not dcc_number.has_version():
+            raise NoVersionError()
+
         document_path = self.document_archive_dir(dcc_number)
         return document_path / dcc_number.string_repr(version=True)
 

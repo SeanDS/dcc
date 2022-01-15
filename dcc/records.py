@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 from dataclasses import dataclass, field, asdict
 from itertools import takewhile
+from functools import total_ordering
 import datetime
 import click
 import toml
@@ -13,7 +14,6 @@ from .sessions import DCCSession
 from .parsers import DCCRecordParser, DCCXMLUpdateParser
 from .util import opened_file
 from .env import DEFAULT_HOST, DEFAULT_IDP
-from .exceptions import NoVersionError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ class DCCAuthor:
 
 
 @dataclass
+@total_ordering
 class DCCNumber:
     """A DCC number including category and numeric identifier.
 
@@ -95,6 +96,7 @@ class DCCNumber:
 
     # DCC document type designators and descriptions.
     _document_type_letters = {
+        "A": "Acquisitions",
         "C": "Contractual or procurement",
         "D": "Drawings",
         "E": "Engineering documents",
@@ -104,6 +106,7 @@ class DCCNumber:
         "M": "Management or Policy",
         "P": "Publications",
         "Q": "Quality Assurance documents",
+        "R": "__unknown__",  # Exists (in XML of e.g. M1700260), but not in forms?
         "S": "Serial numbers",
         "T": "Techical notes",
     }
@@ -289,11 +292,21 @@ class DCCNumber:
         return self.string_repr(version=True)
 
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+        try:
+            # Compare the category, number and version.
+            return self.numbers_equal(other) and other.version == self.version
+        except Exception:
             return NotImplemented
 
-        # Compare the category, number and version.
-        return self.numbers_equal(other) and other.version == self.version
+    def __gt__(self, other):
+        if (
+            not self.numbers_equal(other)
+            or not self.has_version()
+            or not other.has_version
+        ):
+            return NotImplemented
+
+        return self.version > other.version
 
 
 @dataclass
@@ -450,32 +463,49 @@ class DCCRecord:
 
         dcc_number = DCCNumber(dcc_number)
 
-        # Only attempt to retrieve fully qualified records from archive.
-        try:
-            cache_dir = session.record_archive_dir(dcc_number)
-        except NoVersionError:
+        if not dcc_number.has_version():
             LOGGER.info(
-                f"No version in specified code ({dcc_number}); cannot use local archive"
+                f"No version specified in requested record {repr(str(dcc_number))}."
             )
-            cache_dir = None
-        except Exception:
-            cache_dir = None
 
-        if cache_dir is not None and not session.overwrite and cache_dir.exists():
-            # Retrieve the cached record.
-            LOGGER.info(f"Loading {dcc_number} from the local archive")
-
-            try:
-                record = cls.read(cache_dir)
-            except FileNotFoundError as err:
-                raise Exception(f"{err} (document in archive corrupt?)")
+            if session.prefer_archive:
+                # Use the latest archived record, if found.
+                LOGGER.info(
+                    "Attempting to fetch latest archived record (disable by unsetting "
+                    "session's prefer_archive flag)."
+                )
+                try:
+                    return cls._fetch_latest_archive(dcc_number, session=session)
+                except FileNotFoundError:
+                    LOGGER.info("No archived record of any version exists.")
+            else:
+                # We can't know for sure that the local archive contains the latest
+                # version, so we have to fetch the remote.
+                LOGGER.info(
+                    "Ignoring archive (disable by setting session's prefer_archive "
+                    "flag)."
+                )
         else:
-            # Fetch the remote record.
-            LOGGER.info(f"Fetching {dcc_number} from DCC")
-            record = cls._fetch_remote(dcc_number, session)
+            if not session.overwrite:
+                cache_dir = session.record_archive_dir(dcc_number)
 
-            # Archive if required.
-            record.archive(session=session)
+                if cache_dir.exists():
+                    # Retrieve the cached record.
+                    LOGGER.info(f"Fetching {dcc_number} from the local archive")
+
+                    try:
+                        return cls.read(cache_dir)
+                    except FileNotFoundError as err:
+                        raise Exception(f"{err} (document in archive corrupt?)")
+            else:
+                LOGGER.info(f"Overwriting archived copy of {dcc_number} if present")
+
+        # Fetch the remote record.
+        LOGGER.info(f"Fetching {dcc_number} from DCC")
+        record = cls._fetch_remote(dcc_number, session)
+
+        # Archive if required.
+        record.archive(session=session)
 
         return record
 
@@ -537,6 +567,29 @@ class DCCRecord:
             referenced_by=[DCCNumber(ref) for ref in parsed.referencing_ids],
             related_to=[DCCNumber(ref) for ref in parsed.related_ids],
         )
+
+    @classmethod
+    def _fetch_latest_archive(cls, dcc_number, session):
+        document_dir = session.document_archive_dir(dcc_number)
+
+        if document_dir.exists():
+            records = []
+
+            for path in document_dir.iterdir():
+                if not path.is_dir():
+                    continue
+
+                # Try to parse as a record.
+                try:
+                    records.append(cls.read(path))
+                except Exception:
+                    pass
+
+            if records:
+                # Return the record with the latest version.
+                return max(records, key=lambda record: record.dcc_number)
+
+        raise FileNotFoundError(f"No archived record exists for {dcc_number}.")
 
     def fetch_files(self, session=None):
         """Fetch files attached to this record.
@@ -658,8 +711,8 @@ class DCCRecord:
             item["files"] = [DCCFile(**filedata) for filedata in item["files"]]
         if "referenced_by" in item:
             item["referenced_by"] = [DCCNumber(**ref) for ref in item["referenced_by"]]
-        if "related_ids" in item:
-            item["related_ids"] = [DCCNumber(**ref) for ref in item["related_ids"]]
+        if "related_to" in item:
+            item["related_to"] = [DCCNumber(**ref) for ref in item["related_to"]]
 
         return DCCRecord(**item)
 

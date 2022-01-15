@@ -45,6 +45,12 @@ def _set_archive_dir(ctx, _, value):
     state.archive_dir = value
 
 
+def _set_prefer_archive(ctx, _, value):
+    """Set prefer archive flag."""
+    state = ctx.ensure_object(_State)
+    state.prefer_archive = value
+
+
 def _set_overwrite(ctx, _, value):
     """Set overwrite flag."""
     state = ctx.ensure_object(_State)
@@ -89,6 +95,18 @@ archive_dir_option = click.option(
         "directory."
     ),
 )
+prefer_archive_option = click.option(
+    "--prefer-archive",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    callback=_set_prefer_archive,
+    expose_value=False,
+    help=(
+        "When DCC_NUMBER doesn't contain a version, prefer latest archived record over "
+        "the latest remote record."
+    ),
+)
 force_option = click.option(
     "-f",
     "--force",
@@ -97,7 +115,7 @@ force_option = click.option(
     show_default=True,
     callback=_set_overwrite,
     expose_value=False,
-    help="Always fetch from server and overwrite existing archive data.",
+    help="Always fetch from DCC host and overwrite existing archive data.",
 )
 dry_run_option = click.option(
     "-n",
@@ -133,6 +151,61 @@ idp_host_option = click.option(
 )
 
 
+def _archive_record(
+    archive, dcc_number, depth, fetch_related, fetch_referencing, files, session
+):
+    count = 0
+    # Codes already seen.
+    seen = set()
+
+    def _do_fetch(number, level=0):
+        nonlocal count
+
+        indent = "-" * (depth - level)
+
+        cnum = click.style(str(number), fg="green")
+        click.echo(f"{indent}Fetching {cnum}...")
+
+        try:
+            record = archive.fetch_record(number, fetch_files=files, session=session)
+        except UnrecognisedDCCRecordError:
+            click.echo(
+                f"{indent}Could not find DCC document {repr(number)}; skipping.",
+                err=True,
+            )
+            return
+        except (NotLoggedInError, UnauthorisedError):
+            click.echo(
+                f"{indent}You are not authorised to access {number}; skipping.",
+                err=True,
+            )
+            return
+
+        seen.add(record.dcc_number.string_repr(version=False))
+
+        name = click.style(str(record), fg="green")
+        click.echo(f"{indent}Archived {name}")
+        count += 1
+
+        if level > 0:
+            if fetch_related:
+                for ref in record.related_to:
+                    if ref.string_repr(version=False) in seen:
+                        continue
+
+                    _do_fetch(ref, level=level - 1)
+
+            if fetch_referencing:
+                for ref in record.referenced_by:
+                    if ref.string_repr(version=False) in seen:
+                        continue
+
+                    _do_fetch(ref, level=level - 1)
+
+    _do_fetch(dcc_number, level=depth)
+    return count
+
+
 class _State:
     """CLI state."""
 
@@ -143,6 +216,7 @@ class _State:
         self.dcc_host = None
         self.idp_host = None
         self.archive_dir = None
+        self.prefer_archive = None
         self.overwrite = None
         self.dry_run = None
         self._verbosity = self.MIN_VERBOSITY
@@ -152,6 +226,7 @@ class _State:
             host=self.dcc_host,
             idp=self.idp_host,
             archive_dir=self.archive_dir,
+            prefer_archive=self.prefer_archive,
             overwrite=self.overwrite,
             simulate=self.dry_run,
         )
@@ -205,6 +280,7 @@ def dcc():
 @dcc.command()
 @click.argument("dcc_number", type=str)
 @archive_dir_option
+@prefer_archive_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -265,7 +341,6 @@ def view(ctx, dcc_number):
     show_default=True,
     help="Open URL for XML document.",
 )
-@archive_dir_option
 @dcc_host_option
 @idp_host_option
 @verbose_option
@@ -288,6 +363,7 @@ def open(ctx, dcc_number, xml):
 @click.argument("dcc_number", type=str)
 @click.argument("file_number", type=click.IntRange(min=1), nargs=-1)
 @archive_dir_option
+@prefer_archive_option
 @dcc_host_option
 @idp_host_option
 @verbose_option
@@ -351,6 +427,7 @@ def open_file(ctx, dcc_number, file_number):
 )
 @click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
 @archive_dir_option
+@prefer_archive_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -377,51 +454,12 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
             )
         )
 
-    count = 0
-
     with state.dcc_session() as session:
+        count = _archive_record(
+            archive, dcc_number, depth, fetch_related, fetch_referencing, files, session
+        )
 
-        # Codes seen.
-        seen = set()
-
-        def _do_fetch(number, level=0):
-            nonlocal count
-
-            try:
-                record = archive.fetch_record(
-                    number, fetch_files=files, session=session
-                )
-            except UnrecognisedDCCRecordError:
-                click.echo(f"Could not find DCC document {repr(number)}.", err=True)
-                return
-            except (NotLoggedInError, UnauthorisedError):
-                click.echo(f"You are not authorised to access {number}.", err=True)
-                return
-
-            seen.add(record.dcc_number.string_repr(version=False))
-
-            name = click.style(str(record), fg="green")
-            indent = "-" * (depth - level)
-            click.echo(f"{indent}Archived {name}")
-            count += 1
-
-            if level > 0:
-                if fetch_related:
-                    for ref in record.related_to:
-                        if ref.string_repr(version=False) in seen:
-                            continue
-
-                        _do_fetch(ref, level=level - 1)
-
-                if fetch_referencing:
-                    for ref in record.referenced_by:
-                        if ref.string_repr(version=False) in seen:
-                            continue
-
-                        _do_fetch(ref, level=level - 1)
-
-        _do_fetch(dcc_number, level=depth)
-        click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
+    click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
 
 
 @dcc.command()
