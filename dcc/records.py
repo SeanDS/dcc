@@ -176,9 +176,10 @@ class DCCNumber:
         "M": "Management or Policy",
         "P": "Publications",
         "Q": "Quality Assurance documents",
-        "R": "__unknown__",  # Exists (in XML of e.g. M1700260), but not in forms?
+        "R": "__unknown__",  # Exists (e.g. M1700260 XML) but not public.
         "S": "Serial numbers",
         "T": "Techical notes",
+        "X": "__unknown__",  # Exists (e.g. T1100286 XML) but not public.
     }
 
     def __init__(self, category, numeric=None, version=None):
