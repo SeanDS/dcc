@@ -67,8 +67,12 @@ class DCCXMLRecordParser(DCCParser):
         self._parse()
 
     def _parse(self):
+        # Strip out anything not supposed to be here, that would otherwise cause parser
+        # errors.
+        content = self.content.replace("\u000b", "")  # Line feed character (L1200193)
+
         try:
-            self.root = ET.fromstring(self.content)
+            self.root = ET.fromstring(content)
         except ET.ParseError:
             # This is not an XML document. Do we have an error page instead? Use the
             # HTML parser to find out.
