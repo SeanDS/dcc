@@ -538,11 +538,11 @@ class DCCRecord:
                 f"No version specified in requested record {repr(str(dcc_number))}."
             )
 
-            if session.prefer_archive:
+            if session.prefer_local_archive:
                 # Use the latest archived record, if found.
                 LOGGER.info(
                     "Attempting to fetch latest archived record (disable by unsetting "
-                    "session's prefer_archive flag)."
+                    "session's prefer_local_archive flag)."
                 )
                 try:
                     return DCCArchive.fetch_latest_record(dcc_number, session=session)
@@ -552,8 +552,8 @@ class DCCRecord:
                 # We can't know for sure that the local archive contains the latest
                 # version, so we have to fetch the remote.
                 LOGGER.info(
-                    "Ignoring archive (disable by setting session's prefer_archive "
-                    "flag)."
+                    "Ignoring archive (disable by setting session's "
+                    "prefer_local_archive flag)."
                 )
         else:
             if not session.overwrite:

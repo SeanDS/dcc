@@ -2,10 +2,12 @@
 
 import sys
 import logging
+from textwrap import dedent
+from datetime import datetime
 from html2text import html2text
 import click
 
-from . import __version__, PROGRAM, DESCRIPTION
+from . import __version__, PROGRAM, AUTHORS, PROJECT_URL
 from .records import DCCArchive, DCCNumber, DCCAuthor
 from .sessions import DCCSession
 from .parsers import DCCParser
@@ -58,10 +60,10 @@ def _set_archive_dir(ctx, _, value):
     state.archive_dir = value
 
 
-def _set_prefer_archive(ctx, _, value):
+def _set_prefer_local_archive(ctx, _, value):
     """Set prefer archive flag."""
     state = ctx.ensure_object(_State)
-    state.prefer_archive = value
+    state.prefer_local_archive = value
 
 
 def _set_overwrite(ctx, _, value):
@@ -124,12 +126,12 @@ archive_dir_option = click.option(
         "directory."
     ),
 )
-prefer_archive_option = click.option(
-    "--prefer-archive",
+prefer_local_archive_option = click.option(
+    "--prefer-local",
     is_flag=True,
     default=False,
     show_default=True,
-    callback=_set_prefer_archive,
+    callback=_set_prefer_local_archive,
     expose_value=False,
     help=(
         "When DCC_NUMBER doesn't contain a version, prefer latest archived record over "
@@ -163,7 +165,7 @@ max_file_size_option = click.option(
     expose_value=False,
     help=(
         "Maximum file size to download, in MB. If larger, the file is skipped. Note: "
-        "this behaviour relies on the server providing a Content-Length header. If it "
+        "this behaviour relies on the host providing a Content-Length header. If it "
         "does not, the file is downloaded regardless of its real size."
     ),
 )
@@ -300,7 +302,7 @@ class _State:
         self.dcc_host = DEFAULT_HOST
         self.idp_host = DEFAULT_IDP
         self.archive_dir = None
-        self.prefer_archive = None
+        self.prefer_local_archive = None
         self.overwrite = None
         self.dry_run = None
         self.max_file_size = None
@@ -318,7 +320,7 @@ class _State:
             host=self.dcc_host,
             idp=self.idp_host,
             archive_dir=self.archive_dir,
-            prefer_archive=self.prefer_archive,
+            prefer_local_archive=self.prefer_local_archive,
             overwrite=self.overwrite,
             max_file_size=self.max_file_size,
             simulate=self.dry_run,
@@ -376,7 +378,25 @@ class _State:
         return self.verbosity <= logging.WARNING
 
 
-@click.group(name=PROGRAM, help=DESCRIPTION)
+# The help text for the root command.
+_DCC_HELP = f"""
+    {PROGRAM} {__version__}
+
+    Tools for viewing and updating records, metadata and files in the LIGO Document
+    Control Center (DCC).
+
+    Website: {PROJECT_URL}
+
+    {PROGRAM} comes with ABSOLUTELY NO WARRANTY. This is free software, and you are
+    welcome to redistribute it under certain conditions. See the GNU General Public
+    Licence for details.
+
+    Copyright {datetime.now().year} {", ".join(AUTHORS)}
+    """
+_DCC_HELP = dedent(_DCC_HELP)
+
+
+@click.group(name=PROGRAM, help=_DCC_HELP)
 @click.version_option(version=__version__, prog_name=PROGRAM)
 def dcc():
     pass
@@ -385,7 +405,7 @@ def dcc():
 @dcc.command()
 @click.argument("dcc_number", type=str)
 @archive_dir_option
-@prefer_archive_option
+@prefer_local_archive_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -395,10 +415,17 @@ def dcc():
 def view(ctx, dcc_number):
     """View DCC record metadata.
 
-    DCC_NUMBER should be a DCC record designation such as 'D040105'.
+    DCC_NUMBER should be a DCC record designation with optional version such as
+    'D040105' or 'D040105-v1'.
 
-    It is recommended to specify -s/--archive-dir in order to persist downloaded data
-    across invocations of this tool.
+    If DCC_NUMBER contains a version and is present in the local archive, it is used
+    unless --force is specified. If DCC_NUMBER does not contain a version, a version
+    exists in the local archive, and --prefer-local-archive is specified, the latest
+    local version is used. In all other cases, the latest record is fetched from the
+    remote host.
+
+    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
+    variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
     archive = DCCArchive()
@@ -433,7 +460,8 @@ def view(ctx, dcc_number):
 def open(ctx, dcc_number, xml):
     """Open remote DCC record page in the default browser.
 
-    DCC_NUMBER should be a DCC record designation such as 'D040105'.
+    DCC_NUMBER should be a DCC record designation with optional version such as
+    'D040105' or 'D040105-v1'.
     """
     state = ctx.ensure_object(_State)
 
@@ -447,7 +475,7 @@ def open(ctx, dcc_number, xml):
 @click.argument("dcc_number", type=str)
 @click.argument("file_number", type=click.IntRange(min=1))
 @archive_dir_option
-@prefer_archive_option
+@prefer_local_archive_option
 @max_file_size_option
 @download_progress_option
 @dcc_host_option
@@ -458,14 +486,21 @@ def open(ctx, dcc_number, xml):
 def open_file(ctx, dcc_number, file_number):
     """Open file attached to DCC record using operating system.
 
-    DCC_NUMBER should be a DCC record designation such as D040105.
+    DCC_NUMBER should be a DCC record designation with optional version such as
+    'D040105' or 'D040105-v1'.
 
     FILE_NUMBER should be an integer starting from 1 representing the position of the
-    file as listed by `dcc view DCC_NUMBER`. The file will be opened with the default
+    file as listed by 'dcc view DCC_NUMBER'. The file will be opened with the default
     application for its type as determined by the operating system.
 
-    It is recommended to specify -s/--archive-dir in order to persist downloaded data
-    across invocations of this tool.
+    If DCC_NUMBER contains a version and is present in the local archive, it is used
+    unless --force is specified. If DCC_NUMBER does not contain a version, a version
+    exists in the local archive, and --prefer-local-archive is specified, the latest
+    local version is used. In all other cases, the latest record is fetched from the
+    remote host.
+
+    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
+    variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
     archive = DCCArchive()
@@ -520,7 +555,7 @@ def open_file(ctx, dcc_number, file_number):
 )
 @click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
 @archive_dir_option
-@prefer_archive_option
+@prefer_local_archive_option
 @max_file_size_option
 @download_progress_option
 @force_option
@@ -530,12 +565,19 @@ def open_file(ctx, dcc_number, file_number):
 @quiet_option
 @click.pass_context
 def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
-    """Archive DCC record data.
+    """Archive remote DCC record data locally.
 
-    DCC_NUMBER should be a DCC record designation such as D040105.
+    DCC_NUMBER should be a DCC record designation with optional version such as
+    'D040105' or 'D040105-v1'.
 
-    It is recommended to specify -s/--archive-dir in order to persist downloaded data
-    across invocations of this tool.
+    If DCC_NUMBER contains a version and is present in the local archive, it is used
+    unless --force is specified. If DCC_NUMBER does not contain a version, a version
+    exists in the local archive, and --prefer-local-archive is specified, the latest
+    local version is used. In all other cases, the latest record is fetched from the
+    remote host.
+
+    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
+    variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
     archive = DCCArchive()
@@ -563,7 +605,11 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
 @quiet_option
 @click.pass_context
 def list_archive(ctx):
-    """List records in the archive."""
+    """List records in the local archive.
+
+    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
+    variable otherwise this command will list nothing.
+    """
     state = ctx.ensure_object(_State)
     archive = DCCArchive()
 
@@ -606,7 +652,7 @@ def list_archive(ctx):
 )
 @click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
 @archive_dir_option
-@prefer_archive_option
+@prefer_local_archive_option
 @max_file_size_option
 @download_progress_option
 @force_option
@@ -616,12 +662,19 @@ def list_archive(ctx):
 @quiet_option
 @click.pass_context
 def scrape(ctx, url, depth, fetch_related, fetch_referencing, files):
-    """Scrape URL for DCC records.
+    """Extract and archive DCC records from URL.
 
-    URL should be a DCC record designation such as D040105.
+    Any text found on the page at URL that appears to be a DCC number is fetched and
+    archived.
 
-    It is recommended to specify -s/--archive-dir in order to persist downloaded data
-    across invocations of this tool.
+    If any found DCC number contains a version and is present in the local archive, it
+    is used unless --force is specified. If the DCC number does not contain a version, a
+    version exists in the local archive, and --prefer-local-archive is specified, the
+    latest local version is used. In all other cases, the latest record is fetched from
+    the remote host.
+
+    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
+    variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
     archive = DCCArchive()
@@ -689,12 +742,13 @@ def scrape(ctx, url, depth, fetch_related, fetch_referencing, files):
 @quiet_option
 @click.pass_context
 def update(ctx, dcc_number, title, abstract, keywords, note, related, authors):
-    """Update DCC record metadata.
+    """Update remote DCC record metadata.
 
-    DCC_NUMBER should be a DCC record designation such as 'D040105'.
+    DCC_NUMBER should be a DCC record designation with optional version such as
+    'D040105' or 'D040105-v1'.
 
-    It is recommended to specify -s/--archive-dir in order to persist downloaded data
-    across invocations of this tool.
+    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
+    variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
     archive = DCCArchive()
