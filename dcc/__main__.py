@@ -14,6 +14,7 @@ from .exceptions import (
     NotLoggedInError,
     UnrecognisedDCCRecordError,
     UnauthorisedError,
+    FileTooLargeError,
     DryRun,
 )
 
@@ -62,6 +63,12 @@ def _set_dry_run(ctx, _, value):
     """Set dry run flag."""
     state = ctx.ensure_object(_State)
     state.dry_run = value
+
+
+def _set_max_file_size(ctx, _, value):
+    """Set max file size."""
+    state = ctx.ensure_object(_State)
+    state.max_file_size = value * 1024 * 1024  # Convert to bytes.
 
 
 verbose_option = click.option(
@@ -127,6 +134,17 @@ dry_run_option = click.option(
     callback=_set_dry_run,
     expose_value=False,
     help="Perform a trial run with no changes made.",
+)
+max_file_size_option = click.option(
+    "--max-file-size",
+    type=click.IntRange(min=0),
+    callback=_set_max_file_size,
+    expose_value=False,
+    help=(
+        "Maximum file size to download, in MB. If larger, the file is skipped. Note: "
+        "this behaviour relies on the server providing a Content-Length header. If it "
+        "does not, the file is downloaded regardless of its real size."
+    ),
 )
 dcc_host_option = click.option(
     "--host",
@@ -208,7 +226,7 @@ def _archive_record(
         click.echo(f"{indent}Fetching {cnum}...")
 
         try:
-            record = archive.fetch_record(number, fetch_files=files, session=session)
+            record = archive.fetch_record(number, session=session)
         except UnrecognisedDCCRecordError:
             click.echo(
                 f"{indent}Could not find DCC document {repr(number)}; skipping.",
@@ -221,6 +239,10 @@ def _archive_record(
                 err=True,
             )
             return
+
+        if files:
+            # Get the files.
+            record.fetch_files(session=session, raise_too_large=False)
 
         seen.add(record.dcc_number.string_repr(version=False))
 
@@ -260,6 +282,7 @@ class _State:
         self.prefer_archive = None
         self.overwrite = None
         self.dry_run = None
+        self.max_file_size = None
         self._verbosity = self.MIN_VERBOSITY
 
     def dcc_session(self):
@@ -269,6 +292,7 @@ class _State:
             archive_dir=self.archive_dir,
             prefer_archive=self.prefer_archive,
             overwrite=self.overwrite,
+            max_file_size=self.max_file_size,
             simulate=self.dry_run,
         )
 
@@ -365,23 +389,23 @@ def open(ctx, dcc_number, xml):
 
 @dcc.command()
 @click.argument("dcc_number", type=str)
-@click.argument("file_number", type=click.IntRange(min=1), nargs=-1)
+@click.argument("file_number", type=click.IntRange(min=1))
 @archive_dir_option
 @prefer_archive_option
+@max_file_size_option
 @dcc_host_option
 @idp_host_option
 @verbose_option
 @quiet_option
 @click.pass_context
 def open_file(ctx, dcc_number, file_number):
-    """Open file(s) attached to DCC record using operating system.
+    """Open file attached to DCC record using operating system.
 
     DCC_NUMBER should be a DCC record designation such as D040105.
 
     FILE_NUMBER should be an integer starting from 1 representing the position of the
-    file as listed by `dcc view DCC_NUMBER`. Zero or more numbers can be specified, and
-    all will be opened with the default application for the file type as determined by
-    the operating system.
+    file as listed by `dcc view DCC_NUMBER`. The file will be opened with the default
+    application for its type as determined by the operating system.
 
     It is recommended to specify -s/--archive-dir in order to persist downloaded data
     across invocations of this tool.
@@ -390,9 +414,9 @@ def open_file(ctx, dcc_number, file_number):
     archive = DCCArchive()
 
     with state.dcc_session() as session:
+        # Get the record.
         try:
             record = archive.fetch_record(dcc_number, session=session)
-            record.fetch_files(session=session)
         except UnrecognisedDCCRecordError:
             click.echo(f"Could not find DCC document {repr(dcc_number)}.", err=True)
             sys.exit(1)
@@ -400,10 +424,18 @@ def open_file(ctx, dcc_number, file_number):
             click.echo(f"You are not authorised to access {dcc_number}.", err=True)
             sys.exit(1)
 
-        for n in file_number:
-            file_ = record.files[n - 1]
-            click.echo(f"Opening {file_}")
-            file_.open()
+        # Get the file.
+        try:
+            file_ = record.fetch_file(file_number, session=session)
+        except (NotLoggedInError, UnauthorisedError):
+            click.echo(f"You are not authorised to access {dcc_number}.", err=True)
+            sys.exit(1)
+        except FileTooLargeError as err:
+            click.echo(str(err), err=True)
+            sys.exit(1)
+
+        click.echo(f"Opening {file_}")
+        file_.open()
 
 
 @dcc.command()
@@ -432,6 +464,7 @@ def open_file(ctx, dcc_number, file_number):
 @click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
 @archive_dir_option
 @prefer_archive_option
+@max_file_size_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -516,6 +549,7 @@ def list_archive(ctx):
 @click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
 @archive_dir_option
 @prefer_archive_option
+@max_file_size_option
 @force_option
 @dcc_host_option
 @idp_host_option

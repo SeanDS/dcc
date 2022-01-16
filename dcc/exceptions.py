@@ -33,5 +33,12 @@ class NoVersionError(Exception):
         super().__init__("The DCC number has no specified version.", *args, **kwargs)
 
 
+class FileTooLargeError(Exception):
+    """Exception for when a file to be downloaded is too large."""
+
+    def __init__(self, dcc_file, size, allowed):
+        super().__init__(f"{dcc_file} size too large ({size} > {allowed} bytes)")
+
+
 class DryRun(Exception):
     """A dry run has taken place."""

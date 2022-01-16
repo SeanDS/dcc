@@ -14,6 +14,7 @@ from .sessions import DCCSession
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file
 from .env import DEFAULT_HOST, DEFAULT_IDP
+from .exceptions import FileTooLargeError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -637,11 +638,15 @@ class DCCRecord:
             related_to=[DCCNumber(ref) for ref in parsed.related_ids],
         )
 
-    def fetch_files(self, session=None):
+    def fetch_files(self, raise_too_large=True, session=None):
         """Fetch files attached to this record.
 
         Parameters
         ----------
+        raise_too_large : bool, optional
+            If True, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            False, the file is simply ignored.
+
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
@@ -650,8 +655,41 @@ class DCCRecord:
             with _default_session() as session:
                 return self.fetch_files(session=session)
 
-        for file_ in self.files:
-            file_.fetch_file_contents(record=self, session=session)
+        for number in range(1, len(self.files) + 1):
+            try:
+                self.fetch_file(number, session=session)
+            except FileTooLargeError as err:
+                if not raise_too_large:
+                    # Just skip the file, don't raise the error.
+                    LOGGER.debug(f"{err}; skipping")
+                else:
+                    raise
+
+    def fetch_file(self, number, session=None):
+        """Fetch file attached to this record.
+
+        Parameters
+        ----------
+        number : int
+            The file number to fetch.
+
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+
+        Returns
+        -------
+        :class:`.DCCFile`
+            The fetched file.
+        """
+        if session is None:
+            with _default_session() as session:
+                return self.fetch_file(number=number, session=session)
+
+        file_ = self.files[number - 1]
+        LOGGER.debug(f"Fetching {file_} contents")
+        file_.fetch_file_contents(record=self, session=session)
+        return file_
 
     def archive(self, session=None):
         """Serialise the record in the local archive.

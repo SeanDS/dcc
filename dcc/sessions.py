@@ -5,7 +5,7 @@ import logging
 from tempfile import mkdtemp
 from pathlib import Path
 from ciecplib import Session as CIECPSession
-from .exceptions import NoVersionError, DryRun
+from .exceptions import NoVersionError, FileTooLargeError, DryRun
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
     # Transport protocol.
     protocol = "https"
 
-    def __init__(self, host, **kwargs):
+    def __init__(self, host, max_file_size=None, **kwargs):
         super().__init__(**kwargs)
         self.host = host
 
@@ -68,7 +68,7 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         response.raise_for_status()
         return response
 
-    def fetch_file_contents(self, dcc_file, stream=True):
+    def fetch_file_contents(self, dcc_file):
         """Fetch the contents of the specified file.
 
         Parameters
@@ -76,15 +76,12 @@ class DCCHTTPFetcher(metaclass=abc.ABCMeta):
         dcc_file : :class:`.DCCFile`
             The DCC file.
 
-        stream : bool, optional
-            Whether to stream the response. Defaults to True.
-
         Returns
         -------
         :class:`requests.Response`
             The HTTP response.
         """
-        response = self.get(dcc_file.url, stream=stream)
+        response = self.get(dcc_file.url, stream=True)
         response.raise_for_status()
         return response
 
@@ -187,6 +184,9 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         Whether to overwrite existing records and files in the archive with those
         fetched remotely. Defaults to False.
 
+    max_file_size : int, optional
+        Maximum file size to download, in bytes. Defaults to None, which means no limit.
+
     simulate : bool, optional
         Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
         exception.
@@ -199,6 +199,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         archive_dir=None,
         prefer_archive=False,
         overwrite=False,
+        max_file_size=None,
         simulate=False,
         **kwargs,
     ):
@@ -213,6 +214,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         self.archive_dir = Path(archive_dir)
         self.prefer_archive = prefer_archive
         self.overwrite = overwrite
+        self.max_file_size = max_file_size
         self.simulate = simulate
 
         LOGGER.debug(
@@ -278,6 +280,20 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
             The archive file..
         """
         return self.record_archive_dir(dcc_record.dcc_number) / dcc_file.filename
+
+    def fetch_file_contents(self, dcc_file):
+        response = super().fetch_file_contents(dcc_file)
+        content_length = response.headers.get("content-length")
+
+        if content_length:
+            content_length = int(content_length)
+            LOGGER.debug(f"Content length: {content_length}")
+            if self.max_file_size is not None and content_length > self.max_file_size:
+                raise FileTooLargeError(dcc_file, content_length, self.max_file_size)
+
+        return response
+
+    fetch_file_contents.__doc__ = DCCHTTPFetcher.fetch_file_contents.__doc__
 
     def post(self, *args, **kwargs):
         if self.simulate:
