@@ -169,6 +169,12 @@ max_file_size_option = click.option(
         "does not, the file is downloaded regardless of its real size."
     ),
 )
+skip_categories_option = click.option(
+    "--skip-category",
+    type=click.Choice(DCCNumber.document_type_letters),
+    multiple=True,
+    help="Skip document type (can be specified multiple times).",
+)
 dcc_host_option = click.option(
     "--host",
     callback=_set_dcc_host,
@@ -234,7 +240,14 @@ def echo_record(record, session):
 
 
 def _archive_record(
-    archive, dcc_number, depth, fetch_related, fetch_referencing, files, session
+    archive,
+    dcc_number,
+    depth,
+    fetch_related,
+    fetch_referencing,
+    files,
+    skip_categories,
+    session,
 ):
     count = 0
     # Codes already seen.
@@ -245,14 +258,20 @@ def _archive_record(
 
         indent = "-" * (depth - level)
 
-        cnum = click.style(str(number), fg="green")
-        click.echo(f"{indent}Fetching {cnum}...")
+        number = DCCNumber(number)
+        colnumber = click.style(str(number), fg="green")
+
+        if number.category in skip_categories:
+            click.echo(f"{indent}Skipping {colnumber}.")
+            return
+
+        click.echo(f"{indent}Fetching {colnumber}...")
 
         try:
             record = archive.fetch_record(number, session=session)
         except UnrecognisedDCCRecordError:
             click.echo(
-                f"{indent}Could not find DCC document {repr(number)}; skipping.",
+                f"{indent}Could not find DCC document {repr(str(number))}; skipping.",
                 err=True,
             )
             return
@@ -557,6 +576,7 @@ def open_file(ctx, dcc_number, file_number):
 @archive_dir_option
 @prefer_local_archive_option
 @max_file_size_option
+@skip_categories_option
 @download_progress_option
 @force_option
 @dcc_host_option
@@ -564,7 +584,9 @@ def open_file(ctx, dcc_number, file_number):
 @verbose_option
 @quiet_option
 @click.pass_context
-def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
+def archive(
+    ctx, dcc_number, depth, fetch_related, fetch_referencing, files, skip_category
+):
     """Archive remote DCC record data locally.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -593,7 +615,14 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
 
     with state.dcc_session() as session:
         count = _archive_record(
-            archive, dcc_number, depth, fetch_related, fetch_referencing, files, session
+            archive,
+            dcc_number,
+            depth,
+            fetch_related,
+            fetch_referencing,
+            files,
+            skip_category,
+            session,
         )
 
     click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
@@ -654,6 +683,7 @@ def list_archive(ctx):
 @archive_dir_option
 @prefer_local_archive_option
 @max_file_size_option
+@skip_categories_option
 @download_progress_option
 @force_option
 @dcc_host_option
@@ -661,7 +691,7 @@ def list_archive(ctx):
 @verbose_option
 @quiet_option
 @click.pass_context
-def scrape(ctx, url, depth, fetch_related, fetch_referencing, files):
+def scrape(ctx, url, depth, fetch_related, fetch_referencing, files, skip_category):
     """Extract and archive DCC records from URL.
 
     Any text found on the page at URL that appears to be a DCC number is fetched and
@@ -702,6 +732,7 @@ def scrape(ctx, url, depth, fetch_related, fetch_referencing, files):
                 fetch_related,
                 fetch_referencing,
                 files,
+                skip_category,
                 session,
             )
 
