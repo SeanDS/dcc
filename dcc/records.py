@@ -7,6 +7,7 @@ import shutil
 from dataclasses import dataclass, field, asdict
 from itertools import takewhile
 from functools import total_ordering
+from tempfile import TemporaryFile
 import datetime
 import click
 import toml
@@ -51,8 +52,7 @@ class DCCArchive:
             # Try to parse document.
             try:
                 yield self.fetch_latest_record(path.name, session=session)
-            except Exception as e:
-                print(e)
+            except Exception:
                 # Not a valid document directory, or empty.
                 pass
 
@@ -395,7 +395,7 @@ class DCCFile:
         return f"{repr(self.title)} ({self.filename})"
 
     def fetch_file_contents(self, record, session=None):
-        """Fetch the remote file's contents.
+        """Fetch the remote file's contents and store in the archive.
 
         Parameters
         ----------
@@ -424,11 +424,22 @@ class DCCFile:
             else:
                 self.local_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Get the file contents from the DCC.
-            with self.local_path.open("wb") as fobj:
-                LOGGER.info(f"Archiving {self} at {self.local_path}")
+            # Fetch the file from the DCC. First download it to a temporary file, then
+            # move it to the final location if the download was successful. This ensures
+            # interrupted downloads don't leave partially downloaded (corrupt) files in
+            # the archive.
+            with TemporaryFile("w+b") as src:
+                # Get the file contents from the DCC.
+                LOGGER.info(f"Downloading {self}")
                 for chunk in session.fetch_file_contents(self):
-                    fobj.write(chunk)
+                    src.write(chunk)
+
+                # Rewind the file so the copy below takes the whole file.
+                src.seek(0)
+
+                LOGGER.info(f"Archiving {self} at {self.local_path}")
+                with self.local_path.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
 
     def open(self):
         """Open the file using the operating system."""
@@ -457,8 +468,8 @@ class DCCFile:
             )
 
         # Copy, allowing for open file objects.
-        with opened_file(self.local_path, "rb") as src, opened_file(path, "wb") as dest:
-            shutil.copyfileobj(src, dest)
+        with opened_file(self.local_path, "rb") as src, opened_file(path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
 
 
 @dataclass
