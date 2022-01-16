@@ -217,7 +217,7 @@ def echo_key_value(key, value):
 
 def echo_record(record, session):
     echo_key_value("number", record.dcc_number)
-    echo_key_value("url", session.dcc_record_url(record.dcc_number))
+    echo_key_value("url", session.dcc_record_url(record.dcc_number, xml=False))
     echo_key_value("title", record.title)
     echo_key_value("modified", record.contents_revision_date)
     echo_key_value(
