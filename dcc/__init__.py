@@ -12,7 +12,7 @@ locale.setlocale(locale.LC_ALL, "")
 
 # Get package version.
 try:
-    from .version import version as __version__
+    from ._version import version as __version__
 except ImportError:
     raise Exception("Could not find version.py. Ensure you have run setup.")
 
