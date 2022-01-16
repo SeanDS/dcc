@@ -24,8 +24,8 @@ These are available as part of the reference software environments provided by I
 information.
 
 These Python packages are also needed:
-- [`BeautifulSoup4`](https://www.crummy.com/software/BeautifulSoup/)
-- [`pytz`](https://pypi.python.org/pypi/pytz)
+- `BeautifulSoup4`
+- `pytz`
 - `html2text`
 - `ciecplib`
 - `click`
