@@ -29,9 +29,14 @@ def _set_progress(ctx, _, value):
     state.show_progress = value
 
 
-def _set_verbosity(ctx, _, value):
+def _set_verbosity(ctx, param, value):
     """Set verbosity."""
     state = ctx.ensure_object(_State)
+
+    # Quiet verbosity is negative.
+    if param.name == "quiet":
+        value = -value
+
     state.verbosity = value
 
 
