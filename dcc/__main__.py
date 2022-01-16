@@ -420,9 +420,9 @@ def view(ctx, dcc_number):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local-archive is specified, the latest
-    local version is used. In all other cases, the latest record is fetched from the
-    remote host.
+    exists in the local archive, and --prefer-local is specified, the latest local
+    version is used. In all other cases, the latest record is fetched from the remote
+    host.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
     variable in order to persist downloaded data across invocations of this tool.
@@ -495,9 +495,9 @@ def open_file(ctx, dcc_number, file_number):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local-archive is specified, the latest
-    local version is used. In all other cases, the latest record is fetched from the
-    remote host.
+    exists in the local archive, and --prefer-local is specified, the latest local
+    version is used. In all other cases, the latest record is fetched from the remote
+    host.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
     variable in order to persist downloaded data across invocations of this tool.
@@ -572,9 +572,9 @@ def archive(ctx, dcc_number, depth, fetch_related, fetch_referencing, files):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local-archive is specified, the latest
-    local version is used. In all other cases, the latest record is fetched from the
-    remote host.
+    exists in the local archive, and --prefer-local is specified, the latest local
+    version is used. In all other cases, the latest record is fetched from the remote
+    host.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
     variable in order to persist downloaded data across invocations of this tool.
@@ -669,9 +669,9 @@ def scrape(ctx, url, depth, fetch_related, fetch_referencing, files):
 
     If any found DCC number contains a version and is present in the local archive, it
     is used unless --force is specified. If the DCC number does not contain a version, a
-    version exists in the local archive, and --prefer-local-archive is specified, the
-    latest local version is used. In all other cases, the latest record is fetched from
-    the remote host.
+    version exists in the local archive, and --prefer-local is specified, the latest
+    local version is used. In all other cases, the latest record is fetched from the
+    remote host.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
     variable in order to persist downloaded data across invocations of this tool.

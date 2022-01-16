@@ -176,7 +176,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         The archive directory to store retrieved records and files in. Defaults to a
         temporary directory.
 
-    prefer_archive : bool, optional
+    prefer_local_archive : bool, optional
         Whether to prefer the archive over fetching latest remote records. Defaults to
         False.
 
@@ -203,7 +203,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         host,
         idp,
         archive_dir=None,
-        prefer_archive=False,
+        prefer_local_archive=False,
         overwrite=False,
         max_file_size=None,
         simulate=False,
@@ -219,7 +219,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
             archive_dir = mkdtemp(prefix="dcc-")
 
         self.archive_dir = Path(archive_dir)
-        self.prefer_archive = prefer_archive
+        self.prefer_local_archive = prefer_local_archive
         self.overwrite = overwrite
         self.max_file_size = max_file_size
         self.simulate = simulate
