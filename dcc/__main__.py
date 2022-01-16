@@ -23,6 +23,12 @@ from .exceptions import (
 logging.basicConfig()
 
 
+def _set_progress(ctx, _, value):
+    """Set progress flag."""
+    state = ctx.ensure_object(_State)
+    state.show_progress = value
+
+
 def _set_verbosity(ctx, _, value):
     """Set verbosity."""
     state = ctx.ensure_object(_State)
@@ -68,9 +74,19 @@ def _set_dry_run(ctx, _, value):
 def _set_max_file_size(ctx, _, value):
     """Set max file size."""
     state = ctx.ensure_object(_State)
-    state.max_file_size = value * 1024 * 1024  # Convert to bytes.
+    if value is not None:
+        value = value * 1024 * 1024  # Convert to bytes.
+    state.max_file_size = value
 
 
+download_progress_option = click.option(
+    "--progress/--no-progress",
+    is_flag=True,
+    default=True,
+    callback=_set_progress,
+    expose_value=False,
+    help="Show progress bar.",
+)
 verbose_option = click.option(
     "-v",
     "--verbose",
@@ -283,9 +299,16 @@ class _State:
         self.overwrite = None
         self.dry_run = None
         self.max_file_size = None
+        self.show_progress = None
         self._verbosity = self.MIN_VERBOSITY
 
     def dcc_session(self):
+        progress = None
+        if self.show_progress:
+            # Only show progress when not being quiet.
+            if self.verbose:
+                progress = self._download_progress_hook
+
         return DCCSession(
             host=self.dcc_host,
             idp=self.idp_host,
@@ -294,7 +317,34 @@ class _State:
             overwrite=self.overwrite,
             max_file_size=self.max_file_size,
             simulate=self.dry_run,
+            download_progress_hook=progress,
         )
+
+    def _download_progress_hook(self, thing, chunks, total_length):
+        # Iterate over the chunks, yielding each chunk and updating the progress bar.
+        with click.progressbar(length=total_length) as progressbar:
+            display_length = ""
+            if total_length:
+                # Convert to user friendly length.
+                if total_length >= 1024 * 1024 * 1024:
+                    value = total_length / (1024 * 1024 * 1024)
+                    unit = "GB"
+                elif total_length >= 1024 * 1024:
+                    value = total_length / (1024 * 1024)
+                    unit = "MB"
+                elif total_length >= 1024:
+                    value = total_length / 1024
+                    unit = "kB"
+                else:
+                    value = total_length
+                    unit = "B"
+
+                display_length = f" ({value:.2f} {unit})"
+
+            click.echo(f"Downloading {thing}{display_length}")
+            for chunk in chunks:
+                yield chunk
+                progressbar.update(len(chunk))
 
     @property
     def verbosity(self):
@@ -304,7 +354,8 @@ class _State:
     @verbosity.setter
     def verbosity(self, verbosity):
         verbosity = self._verbosity - 10 * int(verbosity)
-        self._verbosity = min(max(verbosity, self.MAX_VERBOSITY), self.MIN_VERBOSITY)
+        verbosity = min(max(verbosity, self.MAX_VERBOSITY), self.MIN_VERBOSITY)
+        self._verbosity = verbosity
         # Set the root logger's level.
         logging.getLogger().setLevel(self._verbosity)
 
@@ -314,10 +365,10 @@ class _State:
 
         Returns
         -------
-        True if the verbosity is enough for INFO/DEBUG messages to be displayed; False
-        otherwise.
+        True if the verbosity is enough for WARNING (and lower) messages to be
+        displayed; False otherwise.
         """
-        return self.verbosity <= logging.INFO
+        return self.verbosity <= logging.WARNING
 
 
 @click.group(name=PROGRAM, help=DESCRIPTION)
@@ -393,6 +444,7 @@ def open(ctx, dcc_number, xml):
 @archive_dir_option
 @prefer_archive_option
 @max_file_size_option
+@download_progress_option
 @dcc_host_option
 @idp_host_option
 @verbose_option
@@ -465,6 +517,7 @@ def open_file(ctx, dcc_number, file_number):
 @archive_dir_option
 @prefer_archive_option
 @max_file_size_option
+@download_progress_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -550,6 +603,7 @@ def list_archive(ctx):
 @archive_dir_option
 @prefer_archive_option
 @max_file_size_option
+@download_progress_option
 @force_option
 @dcc_host_option
 @idp_host_option

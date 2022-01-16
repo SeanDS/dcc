@@ -190,6 +190,12 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
     simulate : bool, optional
         Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
         exception.
+
+    download_progress_hook : iterable, optional
+        Function taking object, iterable (the streamed download chunks) and total length
+        arguments, yielding each provided chunk. This can be used to display a progress
+        bar. Note: the hook is only called if the response provides a Content-Length
+        header.
     """
 
     def __init__(
@@ -201,6 +207,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         overwrite=False,
         max_file_size=None,
         simulate=False,
+        download_progress_hook=None,
         **kwargs,
     ):
         # Workaround for ciecplib #86.
@@ -216,6 +223,7 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
         self.overwrite = overwrite
         self.max_file_size = max_file_size
         self.simulate = simulate
+        self.download_progress_hook = download_progress_hook
 
         LOGGER.debug(
             f"Created session at DCC host {host} using IDP {idp} using cache at "
@@ -290,6 +298,9 @@ class DCCSession(CIECPSession, DCCHTTPFetcher):
             LOGGER.debug(f"Content length: {content_length}")
             if self.max_file_size is not None and content_length > self.max_file_size:
                 raise FileTooLargeError(dcc_file, content_length, self.max_file_size)
+
+            if self.download_progress_hook is not None:
+                return self.download_progress_hook(dcc_file, response, content_length)
 
         return response
 
