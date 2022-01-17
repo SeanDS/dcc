@@ -435,7 +435,7 @@ class _State:
             code = 1 if err else 0
             sys.exit(code)
 
-    def echo(self, *args, exit_=False, **kwargs):
+    def echo(self, *args, **kwargs):
         if self.verbosity > logging.WARNING:
             return
 
@@ -940,7 +940,7 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
                 f"You are not authorised to modify {record.dcc_number}.", exit_=True
             )
         except DryRun:
-            state.echo("Nothing modified.", exit_=True)
+            state.echo("-n/--dry-run specified; nothing modified.", exit_=True)
 
         # Save the document's changes locally. Set overwrite argument to ensure changes
         # are made.

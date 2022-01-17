@@ -143,12 +143,26 @@ class DCCSession(CIECPSession):
 
         # Extract data from records.
         related = [ref.string_repr(version=False) for ref in dcc_record.related_to]
-        authors = [author.name for author in dcc_record.authors]
+
+        if dcc_record.authors:
+            reversed_authors = []
+            for author in dcc_record.authors:
+                # HACK: put first name at end following a comma. Is there a better way
+                # to do this?
+                name_pieces = author.name.split()
+                extra = " ".join(name_pieces[1:])
+                reversed_authors.append(f"{extra}, {name_pieces[0]}")
+            authors = "\n".join(reversed_authors)
+
+        if dcc_record.keywords:
+            keywords = " ".join(dcc_record.keywords)
+        else:
+            keywords = None
 
         fields = [
             (dcc_record.title, "TitleField", "TitleChange"),
             (dcc_record.abstract, "AbstractField", "AbstractChange"),
-            (dcc_record.keywords, "KeywordsField", "KeywordsChange"),
+            (keywords, "KeywordsField", "KeywordsChange"),
             (dcc_record.note, "NotesField", "NotesChange"),
             (related, "RelatedDocumentsField", "RelatedDocumentsChange"),
             (authors, "authormanual", "AuthorsChange"),
