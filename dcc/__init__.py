@@ -1,7 +1,7 @@
 """Tools for interactive and programmatic access to the LIGO DCC."""
 
 PROGRAM = __name__
-AUTHORS = ["Sean Leavey", "Jameson Graef Rollins"]
+AUTHORS = ["Sean Leavey", "Jameson Graef Rollins", "Christopher Wipf"]
 PROJECT_URL = "https://git.ligo.org/sean-leavey/dcc/"
 
 # Get package version.
