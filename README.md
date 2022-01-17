@@ -7,6 +7,7 @@ Collaboration](http://www.ligo.org/) [Document Control Center](https://dcc.ligo.
 - Interactive command line interface
 - Retrieval and modification of record metadata
 - Extraction of attachment descriptions and URLs
+- Local archival of downloaded content
 
 ## Prerequisites
 Access to the DCC requires [ligo.org](https://my.ligo.org/) ("albert.einstein")
@@ -42,7 +43,7 @@ IGWN.
 If you choose to manage system dependencies yourself, you can install `dcc` using your
 favourite Python package manager, e.g.:
 
-```bash
+```
 $ git clone https://git.ligo.org/sean-leavey/dcc.git
 $ cd /path/to/dcc
 $ pip install .
@@ -60,8 +61,8 @@ You must obtain a Kerberos token to authenticate yourself against the LIGO Kerbe
 directory, otherwise `dcc` will not be able to obtain a session cookie to access the
 DCC. This is one possible way to authenticating with Kerberos:
 
-```bash
-kinit albert.einstein@LIGO.ORG
+```
+$ kinit albert.einstein@LIGO.ORG
 ```
 where `albert.einstein` is your username. Note that the `@LIGO.ORG` realm is case
 sensitive.
