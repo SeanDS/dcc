@@ -919,7 +919,7 @@ class DCCRecord:
             opened, written to, then closed.
         """
         # Create a metadata dict.
-        item = dict(__schema__="1.0.0")  # Do this first so it's at the top of the file.
+        item = dict(__schema__="1")  # Do this first so it's at the top of the file.
         item.update(asdict(self))
 
         # Apply some corrections.
@@ -950,6 +950,7 @@ class DCCRecord:
             LOGGER.debug(f"Reading metadata from {path}.")
             item = toml.load(fobj)
 
+        assert item["__schema__"] == "1"
         del item["__schema__"]
 
         item["dcc_number"] = DCCNumber(**item["dcc_number"])
