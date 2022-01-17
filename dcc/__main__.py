@@ -763,12 +763,12 @@ def archive(
     state.echo(result)
 
 
-@dcc.command()
+@dcc.command("list")
 @archive_dir_option
 @verbose_option
 @quiet_option
 @click.pass_context
-def list_archive(ctx):
+def list_(ctx):
     """List records in the local archive.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
