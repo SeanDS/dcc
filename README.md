@@ -9,10 +9,10 @@ Collaboration](http://www.ligo.org/) [Document Control Center](https://dcc.ligo.
 - Extraction of attachment descriptions and URLs
 
 ## Prerequisites
-Access to the DCC requires LIGO.org ("albert.einstein") credentials. You only get these
-if you're part of the LIGO Scientific Collaboration. The tools may work with the public
-DCC without these credentials, but this has not been tested and support for it not a
-primary concern.
+Access to the DCC requires [ligo.org](https://my.ligo.org/) ("albert.einstein")
+credentials. You only get these if you're part of the LIGO Scientific Collaboration. The
+tool may eventually work with the public DCC without these credentials, but this is not
+a primary aim for the time being.
 
 You also need the following system requirements:
 - Python 3.8 or later
@@ -31,7 +31,8 @@ These Python packages are also needed:
 - `click`
 - `toml`
 
-These can be installed by your Python package manager (see below).
+These can be installed manually or automatically by a Python package manager (see
+below).
 
 ## Installation
 Most users will find it easiest to use `dcc` with one of the [reference software
@@ -42,11 +43,15 @@ If you choose to manage system dependencies yourself, you can install `dcc` usin
 favourite Python package manager, e.g.:
 
 ```bash
-$ pip install dcc
+$ git clone https://git.ligo.org/sean-leavey/dcc.git
+$ cd /path/to/dcc
+$ pip install .
 ```
 
+The project will be packaged for [PyPI](https://pypi.org/) at some point in the future.
+
 ## Usage
-Typically `dcc` is used via its command line interface (CLI). On most platforms is
+Typically `dcc` is used via its command line interface (CLI). On most platforms this is
 available via the console command `dcc`. To get an overview of the available
 subcommands, type `dcc --help`.
 
@@ -63,7 +68,8 @@ sensitive.
 
 With a valid Kerberos ticket, requests made by `dcc` should transparently use your
 credentials. Alternatively, if you do not run `kinit`, you will be asked for your
-credentials during requests to the DCC by `dcc`.
+credentials the first time the tool needs to connect to the DCC, each time the tool is
+invoked.
 
 You can also revoke your Kerberos token later with `kdestroy`.
 
