@@ -428,39 +428,45 @@ class _State:
         """
         return self.verbosity <= logging.WARNING
 
-    def echo(self, *args, err=False, exit_=False, **kwargs):
+    def _echo(self, *args, err=False, exit_=False, **kwargs):
         click.echo(*args, err=err, **kwargs)
 
         if exit_:
             code = 1 if err else 0
             sys.exit(code)
 
+    def echo(self, *args, exit_=False, **kwargs):
+        if self.verbosity > logging.WARNING:
+            return
+
+        click._echo(*args, **kwargs)
+
     def echo_info(self, msg, *args, **kwargs):
         if self.verbosity > logging.INFO:
             return
 
         msg = click.style(msg, fg="blue")
-        self.echo(msg, *args, **kwargs)
+        self._echo(msg, *args, **kwargs)
 
     def echo_error(self, msg, *args, **kwargs):
         if self.verbosity > logging.ERROR:
             return
 
         msg = click.style(msg, fg="red")
-        self.echo(msg, *args, err=True, **kwargs)
+        self._echo(msg, *args, err=True, **kwargs)
 
     def echo_warning(self, msg, *args, **kwargs):
         if self.verbosity > logging.WARNING:
             return
 
         msg = click.style(msg, fg="yellow")
-        self.echo(msg, *args, **kwargs)
+        self._echo(msg, *args, **kwargs)
 
     def echo_debug(self, *args, **kwargs):
         if self.verbosity > logging.DEBUG:
             return
 
-        self.echo(*args, **kwargs)
+        self._echo(*args, **kwargs)
 
     def echo_key(self, key, separator=True, nl=True):
         key = click.style(key, fg="green")
@@ -934,13 +940,13 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
                 f"You are not authorised to modify {record.dcc_number}.", exit_=True
             )
         except DryRun:
-            state.echo_info("Nothing modified.", exit_=True)
+            state.echo("Nothing modified.", exit_=True)
 
         # Save the document's changes locally. Set overwrite argument to ensure changes
         # are made.
-        archive.archive_record_metadata(record, overwrite=True, session=session)
+        archive.archive_record_metadata(record, overwrite=True)
 
-        state.echo_info(f"Successfully updated {record.dcc_number}.")
+        state.echo(f"Successfully updated {record.dcc_number}.")
 
 
 if __name__ == "__main__":
