@@ -6,106 +6,267 @@ from pathlib import Path
 import shutil
 from dataclasses import dataclass, field, asdict
 from itertools import takewhile
-from functools import total_ordering
+from functools import total_ordering, wraps
 from tempfile import TemporaryFile
 import datetime
-import click
 import toml
 from .sessions import DCCSession
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file
 from .env import DEFAULT_HOST, DEFAULT_IDP
-from .exceptions import FileTooLargeError
+from .exceptions import NoVersionError, FileTooLargeError
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _default_session():
-    return DCCSession(DEFAULT_HOST, DEFAULT_IDP)
+def ensure_session(func):
+    """Ensure the `session` argument passed to the wrapped function is real, creating a
+    temporary session if required."""
+
+    @wraps(func)
+    def wrapped(*args, session=None, **kwargs):
+        if session is None:
+            LOGGER.debug(f"Using default session for called {func}.")
+            with DCCSession(DEFAULT_HOST, DEFAULT_IDP) as session:
+                return func(*args, session=session, **kwargs)
+
+        return func(*args, session=session, **kwargs)
+
+    return wrapped
 
 
 class DCCArchive:
-    """A collection of DCC documents."""
+    """A local collection of DCC documents.
 
-    def records(self, session=None):
-        """Records in the archive.
+    This acts as an offline store of previously downloaded DCC documents.
 
-        Parameters
-        ----------
-        session : :class:`.DCCSession`, optional
-            The DCC session to use. Defaults to None, which triggers use of the default
-            session settings.
+    Parameters
+    ----------
+    archive_dir : str or :class:`pathlib.Path`
+        The archive directory on the local file system to store retrieved records and
+        files in.
+    """
+
+    def __init__(self, archive_dir):
+        self.archive_dir = Path(archive_dir)
+
+    def records(self):
+        """Records in the local archive.
 
         Yields
         ------
         :class:`.DCCRecord`
             The latest version of a record in the archive.
         """
-        if session is None:
-            with _default_session() as session:
-                return self.records(session=session)
-
-        for path in session.archive_dir.iterdir():
+        for path in self.archive_dir.iterdir():
             if not path.is_dir():
                 continue
 
             # Try to parse document.
             try:
-                yield self.fetch_latest_record(path.name, session=session)
+                yield self.latest_record(path.name)
             except Exception:
                 # Not a valid document directory, or empty.
                 pass
 
-    def fetch_record(self, dcc_number, fetch_files=False, session=None):
-        """Fetch a DCC record and adds it to the archive.
+    @ensure_session
+    def fetch_record(
+        self,
+        dcc_number,
+        *,
+        prefer_local_archive=False,
+        overwrite=False,
+        fetch_files=False,
+        ignore_too_large=False,
+        session,
+    ):
+        """Fetch a DCC record, either from the local archive or from the remote DCC
+        host, adding it to the local archive if necessary.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber` or str
             The DCC record to fetch.
 
+        prefer_local_archive : bool, optional
+            Whether to prefer the archive over fetching latest remote records. Defaults
+            to False.
+
+        overwrite : bool, optional
+            Whether to overwrite existing records and files in the archive with those
+            fetched remotely. Defaults to False.
+
         fetch_files : bool, optional
-            Whether to also fetch the files attached to the record.
+            Whether to also fetch the files attached to the record. Defaults to False.
+
+        ignore_too_large : bool, optional
+            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            True, the file is simply ignored.
 
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
         """
-        if session is None:
-            with _default_session() as session:
-                return self.fetch_record(
-                    dcc_number=dcc_number, fetch_files=fetch_files, session=session
-                )
-
         dcc_number = DCCNumber(dcc_number)
 
-        # Fetch record.
-        record = DCCRecord.fetch(dcc_number, session=session)
+        record = None
+
+        if not dcc_number.has_version():
+            LOGGER.info(
+                f"No version specified in requested record {repr(str(dcc_number))}."
+            )
+
+            if prefer_local_archive:
+                # Use the latest archived record, if found.
+                LOGGER.info(
+                    "Searching for latest record in the local archive (disable by "
+                    "setting prefer_local_archive to False)."
+                )
+                try:
+                    record = self.latest_record(dcc_number)
+                except FileNotFoundError:
+                    LOGGER.info("No locally archived record of any version exists.")
+                else:
+                    LOGGER.info("Found record in local archive.")
+            else:
+                # We can't know for sure that the local archive contains the latest
+                # version, so we have to fetch the remote.
+                LOGGER.info(
+                    "Ignoring local archive (disable by setting "
+                    "DCCArchive.prefer_local_archive to True)."
+                )
+        else:
+            if not overwrite:
+                meta_file = self.record_meta_path(dcc_number)
+
+                if meta_file.exists():
+                    # Retrieve the cached record.
+                    LOGGER.info(f"Fetching {dcc_number} from the local archive")
+
+                    try:
+                        record = DCCRecord.read(meta_file)
+                    except FileNotFoundError as err:
+                        raise Exception(f"{err} (document in local archive corrupt?)")
+            else:
+                LOGGER.info(
+                    f"Overwriting locally archived copy of {dcc_number} if present"
+                )
+
+        if record is None:
+            # Fetch the remote record.
+            LOGGER.info(f"Fetching {dcc_number} from DCC")
+            record = DCCRecord.fetch(dcc_number, session=session)
+
+            # Store/update record in the local archive.
+            self.archive_record_metadata(record, overwrite=overwrite)
 
         if fetch_files:
-            record.fetch_files(session=session)
+            self.fetch_record_files(
+                record,
+                ignore_too_large=ignore_too_large,
+                overwrite=overwrite,
+                session=session,
+            )
 
         return record
 
-    @classmethod
-    def fetch_latest_record(cls, dcc_number, session=None):
-        """Fetch the latest DCC record from the archive.
+    @ensure_session
+    def fetch_record_files(
+        self, record, *, ignore_too_large=False, overwrite=False, session
+    ):
+        """Fetch a DCC record, either from the local archive or from the remote DCC
+        host, adding it to the local archive if necessary.
 
         Parameters
         ----------
-        dcc_number : :class:`.DCCNumber` or str
-            The DCC record to fetch.
+        record : :class:`.DCCRecord`
+            The record to fetch files for.
+
+        ignore_too_large : bool, optional
+            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            True, the file is simply ignored.
+
+        overwrite : bool, optional
+            Whether to overwrite existing local files with those fetched remotely.
+            Defaults to False.
 
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
-        """
-        if session is None:
-            with _default_session() as session:
-                return cls.fetch_latest_record(dcc_number=dcc_number, session=session)
 
+        Returns
+        -------
+        list
+            The fetched :class:`files <.DCCFile>`.
+        """
+        return record.fetch_files(
+            self.record_dir(record.dcc_number),
+            ignore_too_large=ignore_too_large,
+            overwrite=overwrite,
+            session=session,
+        )
+
+    @ensure_session
+    def fetch_record_file(self, record, number, *, overwrite=False, session):
+        """Fetch a DCC record, either from the local archive or from the remote DCC
+        host, adding it to the local archive if necessary.
+
+        Parameters
+        ----------
+        record : :class:`.DCCRecord`
+            The record to fetch files for.
+
+        number : int
+            The file number to fetch.
+
+        overwrite : bool, optional
+            Whether to overwrite existing local files with those fetched remotely.
+            Defaults to False.
+
+        session : :class:`.DCCSession`, optional
+            The DCC session to use. Defaults to None, which triggers use of the default
+            session settings.
+
+        Returns
+        -------
+        :class:`.DCCFile`
+            The fetched file.
+        """
+        return record.fetch_file(
+            number,
+            self.record_dir(record.dcc_number),
+            overwrite=overwrite,
+            session=session,
+        )
+
+    def archive_record_metadata(self, record, *, overwrite):
+        """Serialise record metadata in the local archive."""
+        meta_path = self.record_meta_path(record.dcc_number)
+
+        if meta_path.is_file():
+            if not overwrite:
+                LOGGER.info(
+                    f"Refusing to overwrite existing meta file at {meta_path}; set "
+                    f"overwrite to force."
+                )
+                return
+
+            LOGGER.info(f"Overwriting {meta_path}")
+
+        LOGGER.info(f"Archiving {record} metadata to {meta_path}")
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        record.write(meta_path)
+
+    def latest_record(self, dcc_number):
+        """Load the latest DCC record from the local archive.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber` or str
+            The DCC record to load.
+        """
         dcc_number = DCCNumber(dcc_number)
-        document_dir = session.document_archive_dir(dcc_number)
+        document_dir = self.document_dir(dcc_number)
 
         if document_dir.exists():
             records = []
@@ -114,9 +275,9 @@ class DCCArchive:
                 if not path.is_dir():
                     continue
 
-                # Try to parse as a record.
+                # Parse the record if exists.
                 try:
-                    records.append(DCCRecord.read(path))
+                    records.append(DCCRecord.read(self._meta_path(path)))
                 except Exception:
                     pass
 
@@ -124,7 +285,66 @@ class DCCArchive:
                 # Return the record with the latest version.
                 return max(records, key=lambda record: record.dcc_number)
 
-        raise FileNotFoundError(f"No archived record exists for {dcc_number}.")
+        raise FileNotFoundError(f"No locally archived record exists for {dcc_number}.")
+
+    def document_dir(self, dcc_number):
+        """The local archive directory for the specified DCC number, without a
+        particular version.
+
+        This directory is used to store versioned records.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC number.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            The document's directory in the local archive.
+        """
+        return self.archive_dir / dcc_number.string_repr(version=False)
+
+    def record_dir(self, dcc_number):
+        """The local archive directory for the specified DCC number, with a particular
+        version.
+
+        This directory is used to store data for a particular version of a DCC record.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC number.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            The record's directory in the local archive.
+        """
+        # We require a version.
+        if not dcc_number.has_version():
+            raise NoVersionError()
+
+        document_path = self.document_dir(dcc_number)
+        return document_path / dcc_number.string_repr(version=True)
+
+    def record_meta_path(self, dcc_number):
+        """The meta file in the local archive for the specified DCC number.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber`
+            The DCC number.
+
+        Returns
+        -------
+        :class:`pathlib.Path`
+            The record's meta file path in the local archive.
+        """
+        return self._meta_path(self.record_dir(dcc_number))
+
+    def _meta_path(self, directory):
+        return directory / "meta.toml"
 
 
 @dataclass
@@ -248,15 +468,6 @@ class DCCNumber:
         self.category = category
         self.numeric = numeric
         self.version = version
-
-    def open(self, session=None, xml=False):
-        """Open the DCC record in the user's browser."""
-        if session is None:
-            with _default_session() as session:
-                return self.open(session=session, xml=xml)
-
-        url = session.dcc_record_url(self, xml=xml)
-        click.launch(url)
 
     @classmethod
     def is_category_letter(cls, letter):
@@ -385,45 +596,43 @@ class DCCFile:
     """A DCC file."""
 
     title: str
-    filename: Path
+    filename: str
     url: str
     local_path: Path = field(init=False, default=None)
-
-    def __post_init__(self):
-        self.filename = Path(self.filename)
 
     def __str__(self):
         return f"{repr(self.title)} ({self.filename})"
 
-    def fetch_file_contents(self, record, session=None):
-        """Fetch the remote file's contents and store in the archive.
+    @ensure_session
+    def fetch(self, file_path, *, overwrite=False, session):
+        """Fetch the remote file and store in the local archive.
 
         Parameters
         ----------
-        record : :class:`.DCCRecord`
-            The record associated with this file.
+        file_path : str or :class:`pathlib.Path`
+            The path to use to store the file.
+
+        overwrite : bool, optional
+            Whether to overwrite any existing file in the archive with that fetched
+            remotely. Defaults to False.
 
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
         """
-        if session is None:
-            with _default_session() as session:
-                return self.fetch_file_contents(record=record, session=session)
+        file_path = Path(file_path)
 
-        self.local_path = session.file_archive_path(record, self)
-
-        if not session.overwrite and self.local_path.exists():
+        if not overwrite and file_path.exists():
             # The file is available in the local archive.
-            LOGGER.info(f"{self} is already present in the local archive")
+            LOGGER.info(f"{file_path} already exists.")
         else:
             # Fetch the remote file.
             LOGGER.info(f"Fetching {self} from DCC")
 
-            if self.local_path.exists():
-                LOGGER.info(f"Overwriting {self.local_path}")
+            if file_path.exists():
+                LOGGER.info(f"Overwriting {file_path}")
             else:
-                self.local_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Fetch the file from the DCC. First download it to a temporary file, then
             # move it to the final location if the download was successful. This ensures
@@ -438,19 +647,11 @@ class DCCFile:
                 # Rewind the file so the copy below takes the whole file.
                 src.seek(0)
 
-                LOGGER.info(f"Archiving {self} at {self.local_path}")
-                with self.local_path.open("wb") as dst:
+                LOGGER.info(f"Saving {self} to {file_path}")
+                with file_path.open("wb") as dst:
                     shutil.copyfileobj(src, dst)
 
-    def open(self):
-        """Open the file using the operating system."""
-        if self.local_path is None:
-            raise FileNotFoundError(
-                f"Local copy of {self} has not yet been archived (run "
-                f"{self.__class__.__name__}.fetch_file_contents())."
-            )
-
-        click.launch(str(self.local_path))
+                self.local_path = file_path
 
     def write(self, path):
         """Write file to the file system.
@@ -464,8 +665,8 @@ class DCCFile:
         """
         if self.local_path is None:
             raise FileNotFoundError(
-                f"Local copy of {self} has not yet been archived (run "
-                f"{self.__class__.__name__}.fetch_file_contents())."
+                f"Local copy of {self} not found (run "
+                f"{self.__class__.__name__}.fetch())."
             )
 
         # Copy, allowing for open file objects.
@@ -513,7 +714,7 @@ class DCCRecord:
     related_to: List[DCCNumber] = None
 
     def __str__(self):
-        return f"{self.dcc_number}: {self.title}"
+        return f"{self.dcc_number}: {repr(self.title)}"
 
     def __post_init__(self):
         # Ensure referencing documents don't include this one.
@@ -522,8 +723,9 @@ class DCCRecord:
         self.related_to = list(takewhile(pred, self.related_to))
 
     @classmethod
-    def fetch(cls, dcc_number, session=None):
-        """Fetch and create a DCC record.
+    @ensure_session
+    def fetch(cls, dcc_number, *, session):
+        """Fetch record from the remote DCC host.
 
         Parameters
         ----------
@@ -539,60 +741,8 @@ class DCCRecord:
         :class:`.DCCRecord`
             The fetched record.
         """
-        if session is None:
-            with _default_session() as session:
-                return cls.fetch(dcc_number, session=session)
-
         dcc_number = DCCNumber(dcc_number)
 
-        if not dcc_number.has_version():
-            LOGGER.info(
-                f"No version specified in requested record {repr(str(dcc_number))}."
-            )
-
-            if session.prefer_local_archive:
-                # Use the latest archived record, if found.
-                LOGGER.info(
-                    "Attempting to fetch latest archived record (disable by unsetting "
-                    "session's prefer_local_archive flag)."
-                )
-                try:
-                    return DCCArchive.fetch_latest_record(dcc_number, session=session)
-                except FileNotFoundError:
-                    LOGGER.info("No archived record of any version exists.")
-            else:
-                # We can't know for sure that the local archive contains the latest
-                # version, so we have to fetch the remote.
-                LOGGER.info(
-                    "Ignoring archive (disable by setting session's "
-                    "prefer_local_archive flag)."
-                )
-        else:
-            if not session.overwrite:
-                cache_dir = session.record_archive_dir(dcc_number)
-
-                if cache_dir.exists():
-                    # Retrieve the cached record.
-                    LOGGER.info(f"Fetching {dcc_number} from the local archive")
-
-                    try:
-                        return cls.read(cache_dir)
-                    except FileNotFoundError as err:
-                        raise Exception(f"{err} (document in archive corrupt?)")
-            else:
-                LOGGER.info(f"Overwriting archived copy of {dcc_number} if present")
-
-        # Fetch the remote record.
-        LOGGER.info(f"Fetching {dcc_number} from DCC")
-        record = cls._fetch_remote(dcc_number, session)
-
-        # Archive if required.
-        record.archive(session=session)
-
-        return record
-
-    @classmethod
-    def _fetch_remote(cls, dcc_number, session):
         # Get the document contents from the DCC.
         response = session.fetch_record_page(dcc_number)
 
@@ -650,40 +800,66 @@ class DCCRecord:
             related_to=[DCCNumber(ref) for ref in parsed.related_ids],
         )
 
-    def fetch_files(self, raise_too_large=True, session=None):
+    @ensure_session
+    def fetch_files(
+        self, directory, *, ignore_too_large=False, overwrite=False, session
+    ):
         """Fetch files attached to this record.
 
         Parameters
         ----------
-        raise_too_large : bool, optional
-            If True, when a file is too large, raise a :class:`.FileTooLargeError`. If
-            False, the file is simply ignored.
+        directory : str or :class:`pathlib.Path`
+            The directory in which to store the fetched files.
+
+        ignore_too_large : bool, optional
+            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            True, the file is simply ignored.
+
+        overwrite : bool, optional
+            Whether to overwrite existing local files with those fetched remotely.
+            Defaults to False.
 
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
-        """
-        if session is None:
-            with _default_session() as session:
-                return self.fetch_files(session=session)
 
+        Returns
+        -------
+        list
+            The fetched :class:`files <.DCCFile>`.
+        """
+        files = []
         for number in range(1, len(self.files) + 1):
             try:
-                self.fetch_file(number, session=session)
+                file_ = self.fetch_file(
+                    number, directory, overwrite=overwrite, session=session
+                )
             except FileTooLargeError as err:
-                if not raise_too_large:
+                if ignore_too_large:
                     # Just skip the file, don't raise the error.
                     LOGGER.debug(f"{err}; skipping")
                 else:
                     raise
+            else:
+                files.append(file_)
 
-    def fetch_file(self, number, session=None):
+        return files
+
+    @ensure_session
+    def fetch_file(self, number, directory, *, overwrite=False, session):
         """Fetch file attached to this record.
 
         Parameters
         ----------
         number : int
             The file number to fetch.
+
+        directory : str or :class:`pathlib.Path`
+            The directory in which to store the fetched file.
+
+        overwrite : bool, optional
+            Whether to overwrite the existing local file with that fetched remotely.
+            Defaults to False.
 
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
@@ -694,48 +870,14 @@ class DCCRecord:
         :class:`.DCCFile`
             The fetched file.
         """
-        if session is None:
-            with _default_session() as session:
-                return self.fetch_file(number=number, session=session)
-
         file_ = self.files[number - 1]
-        LOGGER.debug(f"Fetching {file_} contents")
-        file_.fetch_file_contents(record=self, session=session)
+        path = Path(directory) / file_.filename
+        LOGGER.debug(f"Fetching {file_} contents.")
+        file_.fetch(path, overwrite=overwrite, session=session)
         return file_
 
-    def archive(self, session=None):
-        """Serialise the record in the local archive.
-
-        Parameters
-        ----------
-        session : :class:`.DCCSession`, optional
-            The DCC session to use. Defaults to None, which triggers use of the default
-            session settings.
-        """
-        if session is None:
-            with _default_session() as session:
-                return self.archive(session=session)
-
-        archive_dir = session.record_archive_dir(self.dcc_number)
-        archive_dir.mkdir(parents=True, exist_ok=True)
-        meta_file = self._meta_file(archive_dir)
-
-        if session.overwrite or not meta_file.exists():
-            if meta_file.exists():
-                LOGGER.info(f"Overwriting {meta_file}")
-
-            LOGGER.info(f"Archiving {self} metadata to {meta_file}")
-            self.write(meta_file)
-        else:
-            # Only reached if the user fetched a record number without a version,
-            # but the version retrieved from the DCC already existed in the local
-            # archive.
-            LOGGER.info(
-                f"Refusing to overwrite existing file at {meta_file}; set "
-                f"session overwrite flag to force"
-            )
-
-    def update(self, session=None):
+    @ensure_session
+    def update(self, *, session):
         """Update the remote record metadata.
 
         Parameters
@@ -744,10 +886,6 @@ class DCCRecord:
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
         """
-        if session is None:
-            with _default_session() as session:
-                return self.update(session=session)
-
         # Get the document contents from the DCC.
         response = session.update_record_metadata(self)
 
@@ -769,31 +907,31 @@ class DCCRecord:
         item.update(asdict(self))
 
         # Apply some corrections.
-        for file_ in item.get("files", []):
-            if "filename" in file_:
-                # Only take the string.
-                file_["filename"] = str(file_["filename"])
+        for number, file_ in enumerate(item["files"]):
+            # Remove fields that can be reproduced from other data.
+            file_.pop("local_path")
 
         with opened_file(path, "w") as fobj:
             toml.dump(item, fobj)
 
     @classmethod
-    def read(cls, target_dir):
+    def read(cls, path):
         """Read record from the file system.
 
         Parameters
         ----------
-        target_dir : str or :class:`pathlib.Path`
-            The path to read from.
+        path : str or :class:`pathlib.Path`
+            The path for the record's meta file.
 
         Returns
         -------
         :class:`.DCCRecord`
             The record.
         """
-        meta_file = cls._meta_file(target_dir)
-        with meta_file.open("r") as fobj:
-            LOGGER.debug(f"Reading metadata from {meta_file}.")
+        path = Path(path)
+
+        with path.open("r") as fobj:
+            LOGGER.debug(f"Reading metadata from {path}.")
             item = toml.load(fobj)
 
         del item["__schema__"]
@@ -804,17 +942,23 @@ class DCCRecord:
         if "journal_reference" in item:
             item["journal_reference"] = DCCJournalRef(**item["journal_reference"])
         if "files" in item:
-            item["files"] = [DCCFile(**filedata) for filedata in item["files"]]
+            files = []
+            for filedata in item["files"]:
+                file_ = DCCFile(**filedata)
+
+                # Update local path if the file has been downloaded.
+                local_path = path.parent / file_.filename
+                if local_path.is_file():
+                    file_.local_path = local_path
+
+                files.append(file_)
+            item["files"] = files
         if "referenced_by" in item:
             item["referenced_by"] = [DCCNumber(**ref) for ref in item["referenced_by"]]
         if "related_to" in item:
             item["related_to"] = [DCCNumber(**ref) for ref in item["related_to"]]
 
         return DCCRecord(**item)
-
-    @staticmethod
-    def _meta_file(target_dir):
-        return Path(target_dir) / "meta.toml"
 
     @property
     def author_names(self):

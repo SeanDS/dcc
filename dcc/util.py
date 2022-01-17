@@ -4,6 +4,20 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
+# Allowed mode pairs.
+_MODE_MAP = (
+    ("r", "r"),
+    ("r", "+"),
+    ("w", "w"),
+    ("w", "+"),
+    ("x", "x"),
+    ("a", "a"),
+    ("+", "+"),
+    ("+", "r"),
+    ("+", "w"),
+)
+
+
 @contextmanager
 def opened_file(fobj, mode):
     """Get an open file regardless of whether a string or an already open file is
@@ -40,13 +54,13 @@ def opened_file(fobj, mode):
     else:
         try:
             # Ensure mode agrees.
-            if fobj.mode != mode:
+            if not any(lm in mode and rm in fobj.mode for lm, rm in _MODE_MAP):
                 raise ValueError(
-                    f"Unexpected mode for '{fobj.name}' (expected '{mode}', got "
-                    f"'{fobj.mode}')"
+                    f"Unexpected mode for {repr(fobj.name)} (expected mode compatible "
+                    f"with {repr(mode)}, got {repr(fobj.mode)})."
                 )
         except AttributeError:
-            raise ValueError(f"'{fobj}' is not an open file or path.")
+            raise ValueError(f"{repr(fobj)} is not an open file or path.")
 
     try:
         yield fobj

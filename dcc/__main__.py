@@ -3,7 +3,11 @@
 import sys
 import logging
 from textwrap import dedent
+from pathlib import Path
 from datetime import datetime
+from dataclasses import dataclass
+from contextlib import contextmanager
+from tempfile import TemporaryDirectory, NamedTemporaryFile
 from html2text import html2text
 import click
 
@@ -23,6 +27,24 @@ from .exceptions import (
 
 # Configure logging to stderr.
 logging.basicConfig()
+
+
+class DCCNumberType(click.ParamType):
+    name = "DCC number"
+
+    def convert(self, value, param, ctx):
+        try:
+            return DCCNumber(value)
+        except ValueError:
+            self.fail(
+                f"{repr(value)}. The number should have the form 'LIGO-D040105', "
+                f"'D040105', or 'D040105-v1'.",
+                param,
+                ctx,
+            )
+
+
+DCC_NUMBER_TYPE = DCCNumberType()
 
 
 def _set_progress(ctx, _, value):
@@ -58,18 +80,6 @@ def _set_archive_dir(ctx, _, value):
     """Set archive directory."""
     state = ctx.ensure_object(_State)
     state.archive_dir = value
-
-
-def _set_prefer_local_archive(ctx, _, value):
-    """Set prefer archive flag."""
-    state = ctx.ensure_object(_State)
-    state.prefer_local_archive = value
-
-
-def _set_overwrite(ctx, _, value):
-    """Set overwrite flag."""
-    state = ctx.ensure_object(_State)
-    state.overwrite = value
 
 
 def _set_dry_run(ctx, _, value):
@@ -131,8 +141,6 @@ prefer_local_archive_option = click.option(
     is_flag=True,
     default=False,
     show_default=True,
-    callback=_set_prefer_local_archive,
-    expose_value=False,
     help=(
         "When DCC_NUMBER doesn't contain a version, prefer latest archived record over "
         "the latest remote record."
@@ -144,8 +152,6 @@ force_option = click.option(
     is_flag=True,
     default=False,
     show_default=True,
-    callback=_set_overwrite,
-    expose_value=False,
     help="Always fetch from DCC host and overwrite existing archive data.",
 )
 dry_run_option = click.option(
@@ -199,98 +205,98 @@ idp_host_option = click.option(
 )
 
 
-def echo_key(key, separator=True, nl=True):
-    key = click.style(key, fg="green")
-    if separator:
-        key = f"{key}: "
-    click.echo(key, nl=nl)
+@dataclass
+class ArchiveResult:
+    """Results from record archival."""
 
+    archived: int = 0
+    ignored: int = 0
+    unauthorised: int = 0
+    unrecognised: int = 0
+    other_error: int = 0
+    files_archived: int = 0
 
-def echo_value(value):
-    click.echo(value)
+    def __str__(self):
+        return (
+            f"Archive result:\n"
+            f"Records archived: {self.archived}, ignored: {self.ignored}, "
+            f"unauthorised: {self.unauthorised}, unrecognised: {self.unrecognised}, "
+            f"other error: {self.other_error}\n"
+            f"Files archived: {self.files_archived}"
+        )
 
-
-def echo_key_value(key, value):
-    echo_key(key, separator=True, nl=False)
-    echo_value(value)
-
-
-def echo_record(record, session):
-    echo_key_value("number", record.dcc_number)
-    echo_key_value("url", session.dcc_record_url(record.dcc_number, xml=False))
-    echo_key_value("title", record.title)
-    echo_key_value("modified", record.contents_revision_date)
-    echo_key_value(
-        "authors", ", ".join([author.name.strip() for author in record.authors])
-    )
-    echo_key("abstract")
-    if record.abstract:
-        echo_value(html2text(record.abstract).strip())
-    echo_key("note")
-    if record.note:
-        echo_value(html2text(record.note).strip())
-    echo_key_value("keywords", ", ".join(record.keywords))
-    echo_key("files")
-    for i, file_ in enumerate(record.files, start=1):
-        echo_value(f"{i}. {file_}")
-    echo_key_value(
-        "referenced by", ", ".join([str(ref) for ref in record.referenced_by])
-    )
-    echo_key_value("related to", ", ".join([str(ref) for ref in record.related_to]))
+    def __add__(self, other):
+        return self.__class__(
+            self.archived + other.archived,
+            self.ignored + other.ignored,
+            self.unauthorised + other.unauthorised,
+            self.unrecognised + other.unrecognised,
+            self.other_error + other.other_error,
+            self.files_archived + other.files_archived,
+        )
 
 
 def _archive_record(
+    state,
     archive,
     dcc_number,
     depth,
     fetch_related,
     fetch_referencing,
     files,
+    prefer_local,
     skip_categories,
+    force,
     session,
 ):
-    count = 0
+    result = ArchiveResult()
+
     # Codes already seen.
     seen = set()
 
     def _do_fetch(number, level=0):
-        nonlocal count
-
         indent = "-" * (depth - level)
 
         number = DCCNumber(number)
-        colnumber = click.style(str(number), fg="green")
 
         if number.category in skip_categories:
-            click.echo(f"{indent}Skipping {colnumber}.")
+            state.echo(f"{indent}Skipping {number}.")
+            result.ignored += 1
             return
 
-        click.echo(f"{indent}Fetching {colnumber}...")
+        state.echo(f"{indent}Fetching {number}...")
 
         try:
-            record = archive.fetch_record(number, session=session)
-        except UnrecognisedDCCRecordError:
-            click.echo(
-                f"{indent}Could not find DCC document {repr(str(number))}; skipping.",
-                err=True,
+            record = archive.fetch_record(
+                number,
+                prefer_local_archive=prefer_local,
+                overwrite=force,
+                fetch_files=files,
+                ignore_too_large=True,
+                session=session,
             )
+        except UnrecognisedDCCRecordError:
+            state.echo_error(f"{indent}Could not find DCC document {number}; skipping.")
+            result.unrecognised += 1
             return
         except (NotLoggedInError, UnauthorisedError):
-            click.echo(
-                f"{indent}You are not authorised to access {number}; skipping.",
-                err=True,
+            state.echo_error(
+                f"{indent}You are not authorised to access {number}; skipping."
             )
+            result.unauthorised += 1
+            return
+        except Exception as err:
+            state.echo_error(
+                f"{indent}error {repr(str(err))} while accessing {number}; skipping."
+            )
+            result.other_error += 1
             return
 
-        if files:
-            # Get the files.
-            record.fetch_files(session=session, raise_too_large=False)
-
         seen.add(record.dcc_number.string_repr(version=False))
+        result.archived += 1
 
-        name = click.style(str(record), fg="green")
-        click.echo(f"{indent}Archived {name}")
-        count += 1
+        if files:
+            result.files_archived += len(record.files)
 
         if level > 0:
             if fetch_related:
@@ -307,26 +313,26 @@ def _archive_record(
 
                     _do_fetch(ref, level=level - 1)
 
-    _do_fetch(dcc_number, level=depth)
-    return count
+    try:
+        _do_fetch(dcc_number, level=depth)
+    except Exception as err:
+        state.echo_error(f"archival error: {err}")
+
+    return result
 
 
 class _State:
     """CLI state."""
 
-    MIN_VERBOSITY = logging.WARNING
-    MAX_VERBOSITY = logging.DEBUG
-
     def __init__(self):
         self.dcc_host = DEFAULT_HOST
         self.idp_host = DEFAULT_IDP
         self.archive_dir = None
-        self.prefer_local_archive = None
-        self.overwrite = None
         self.dry_run = None
         self.max_file_size = None
         self.show_progress = None
-        self._verbosity = self.MIN_VERBOSITY
+        self.archive_is_temporary = None
+        self._verbosity = logging.WARNING
 
     def dcc_session(self):
         progress = None
@@ -336,15 +342,41 @@ class _State:
                 progress = self._download_progress_hook
 
         return DCCSession(
-            host=self.dcc_host,
-            idp=self.idp_host,
-            archive_dir=self.archive_dir,
-            prefer_local_archive=self.prefer_local_archive,
-            overwrite=self.overwrite,
+            self.dcc_host,
+            self.idp_host,
             max_file_size=self.max_file_size,
             simulate=self.dry_run,
             download_progress_hook=progress,
         )
+
+    @contextmanager
+    def dcc_archive(self):
+        archive_dir = self.archive_dir
+
+        if archive_dir is None:
+            # Use a temporary directory.
+            self.echo_warning(
+                "-s/--archive-dir not specified. Downloaded records will not be "
+                "persisted."
+            )
+
+            self.archive_is_temporary = True
+
+            with TemporaryDirectory(prefix="dcc-") as archive_dir:
+                self.echo_debug("Creating temporary directory for use as archive.")
+                yield self._dcc_archive(archive_dir)
+                self.echo_debug("Removing temporary archive.")
+        else:
+            self.archive_is_temporary = False
+            yield self._dcc_archive(archive_dir)
+
+        # Reset.
+        self.archive_is_temporary = None
+
+    def _dcc_archive(self, archive_dir):
+        archive_dir = Path(archive_dir)
+        self.echo_debug(f"Using {archive_dir} as archive.")
+        return DCCArchive(archive_dir)
 
     def _download_progress_hook(self, thing, chunks, total_length):
         # Iterate over the chunks, yielding each chunk and updating the progress bar.
@@ -367,7 +399,7 @@ class _State:
 
                 display_length = f" ({value:.2f} {unit})"
 
-            click.echo(f"Downloading {thing}{display_length}")
+            self.echo(f"Downloading {thing}{display_length}")
             for chunk in chunks:
                 yield chunk
                 progressbar.update(len(chunk))
@@ -380,7 +412,7 @@ class _State:
     @verbosity.setter
     def verbosity(self, verbosity):
         verbosity = self._verbosity - 10 * int(verbosity)
-        verbosity = min(max(verbosity, self.MAX_VERBOSITY), self.MIN_VERBOSITY)
+        verbosity = min(max(verbosity, logging.DEBUG), logging.CRITICAL)
         self._verbosity = verbosity
         # Set the root logger's level.
         logging.getLogger().setLevel(self._verbosity)
@@ -395,6 +427,75 @@ class _State:
         displayed; False otherwise.
         """
         return self.verbosity <= logging.WARNING
+
+    def echo(self, *args, err=False, exit_=False, **kwargs):
+        click.echo(*args, err=err, **kwargs)
+
+        if exit_:
+            code = 1 if err else 0
+            sys.exit(code)
+
+    def echo_info(self, msg, *args, **kwargs):
+        if self.verbosity > logging.INFO:
+            return
+
+        msg = click.style(msg, fg="blue")
+        self.echo(msg, *args, **kwargs)
+
+    def echo_error(self, msg, *args, **kwargs):
+        if self.verbosity > logging.ERROR:
+            return
+
+        msg = click.style(msg, fg="red")
+        self.echo(msg, *args, err=True, **kwargs)
+
+    def echo_warning(self, msg, *args, **kwargs):
+        if self.verbosity > logging.WARNING:
+            return
+
+        msg = click.style(msg, fg="yellow")
+        self.echo(msg, *args, **kwargs)
+
+    def echo_debug(self, *args, **kwargs):
+        if self.verbosity > logging.DEBUG:
+            return
+
+        self.echo(*args, **kwargs)
+
+    def echo_key(self, key, separator=True, nl=True):
+        key = click.style(key, fg="green")
+        if separator:
+            key = f"{key}: "
+        self.echo(key, nl=nl)
+
+    def echo_key_value(self, key, value):
+        self.echo_key(key, separator=True, nl=False)
+        self.echo(value)
+
+    def echo_record(self, record, session):
+        self.echo_key_value("number", record.dcc_number)
+        self.echo_key_value("url", session.dcc_record_url(record.dcc_number, xml=False))
+        self.echo_key_value("title", record.title)
+        self.echo_key_value("modified", record.contents_revision_date)
+        self.echo_key_value(
+            "authors", ", ".join([author.name.strip() for author in record.authors])
+        )
+        self.echo_key("abstract")
+        if record.abstract:
+            self.echo(html2text(record.abstract).strip())
+        self.echo_key("note")
+        if record.note:
+            self.echo(html2text(record.note).strip())
+        self.echo_key_value("keywords", ", ".join(record.keywords))
+        self.echo_key("files")
+        for i, file_ in enumerate(record.files, start=1):
+            self.echo(f"{i}. {file_}")
+        self.echo_key_value(
+            "referenced by", ", ".join([str(ref) for ref in record.referenced_by])
+        )
+        self.echo_key_value(
+            "related to", ", ".join([str(ref) for ref in record.related_to])
+        )
 
 
 # The help text for the root command.
@@ -422,7 +523,7 @@ def dcc():
 
 
 @dcc.command()
-@click.argument("dcc_number", type=str)
+@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
 @archive_dir_option
 @prefer_local_archive_option
 @force_option
@@ -431,7 +532,7 @@ def dcc():
 @verbose_option
 @quiet_option
 @click.pass_context
-def view(ctx, dcc_number):
+def view(ctx, dcc_number, prefer_local, force):
     """View DCC record metadata.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -447,23 +548,27 @@ def view(ctx, dcc_number):
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
-    archive = DCCArchive()
 
-    with state.dcc_session() as session:
+    with state.dcc_archive() as archive, state.dcc_session() as session:
         try:
-            record = archive.fetch_record(dcc_number, session=session)
+            record = archive.fetch_record(
+                dcc_number,
+                prefer_local_archive=prefer_local,
+                overwrite=force,
+                session=session,
+            )
         except UnrecognisedDCCRecordError:
-            click.echo(f"Could not find DCC document {repr(dcc_number)}.", err=True)
-            sys.exit(1)
+            state.echo_error(f"Could not find DCC document {dcc_number}.", exit_=True)
         except (NotLoggedInError, UnauthorisedError):
-            click.echo(f"You are not authorised to access {dcc_number}.", err=True)
-            sys.exit(1)
+            state.echo_error(
+                f"You are not authorised to access {dcc_number}.", exit_=True
+            )
 
-        echo_record(record, session)
+        state.echo_record(record, session)
 
 
 @dcc.command()
-@click.argument("dcc_number", type=str)
+@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
 @click.option(
     "--xml",
     is_flag=True,
@@ -485,24 +590,25 @@ def open(ctx, dcc_number, xml):
     state = ctx.ensure_object(_State)
 
     with state.dcc_session() as session:
-        dcc_number = DCCNumber(dcc_number)
-        click.echo(f"Opening {dcc_number}")
-        dcc_number.open(session=session, xml=xml)
+        state.echo_info(f"Opening {dcc_number}")
+        url = session.dcc_record_url(dcc_number, xml=xml)
+        click.launch(url)
 
 
 @dcc.command()
-@click.argument("dcc_number", type=str)
+@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
 @click.argument("file_number", type=click.IntRange(min=1))
 @archive_dir_option
 @prefer_local_archive_option
 @max_file_size_option
 @download_progress_option
+@force_option
 @dcc_host_option
 @idp_host_option
 @verbose_option
 @quiet_option
 @click.pass_context
-def open_file(ctx, dcc_number, file_number):
+def open_file(ctx, dcc_number, file_number, prefer_local, force):
     """Open file attached to DCC record using operating system.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -522,35 +628,57 @@ def open_file(ctx, dcc_number, file_number):
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
-    archive = DCCArchive()
 
-    with state.dcc_session() as session:
+    with state.dcc_archive() as archive, state.dcc_session() as session:
         # Get the record.
         try:
-            record = archive.fetch_record(dcc_number, session=session)
+            record = archive.fetch_record(
+                dcc_number,
+                prefer_local_archive=prefer_local,
+                overwrite=force,
+                session=session,
+            )
         except UnrecognisedDCCRecordError:
-            click.echo(f"Could not find DCC document {repr(dcc_number)}.", err=True)
-            sys.exit(1)
+            state.echo_error(f"Could not find DCC document {dcc_number}.", exit_=True)
         except (NotLoggedInError, UnauthorisedError):
-            click.echo(f"You are not authorised to access {dcc_number}.", err=True)
-            sys.exit(1)
+            state.echo_error(
+                f"You are not authorised to access {dcc_number}.", exit_=True
+            )
 
         # Get the file.
         try:
-            file_ = record.fetch_file(file_number, session=session)
+            file_ = archive.fetch_record_file(
+                record, file_number, overwrite=force, session=session
+            )
         except (NotLoggedInError, UnauthorisedError):
-            click.echo(f"You are not authorised to access {dcc_number}.", err=True)
-            sys.exit(1)
+            state.echo_error(
+                f"You are not authorised to access {dcc_number}.", exit_=True
+            )
         except FileTooLargeError as err:
-            click.echo(str(err), err=True)
-            sys.exit(1)
+            state.echo_error(str(err), _exit=True)
 
-        click.echo(f"Opening {file_}")
-        file_.open()
+        if state.archive_is_temporary:
+            # The archive is temporary, which means the file will be deleted as soon as
+            # (the non-blocking, at least on Linux) :func:`click.launch` exits, which
+            # prevents the application from opening it. Copy the file to a temporary
+            # location that won't be # deleted when the context ends.
+            temp_path = NamedTemporaryFile(
+                prefix="dcc-", suffix=f"-{file_.filename.name}", delete=False
+            )
+            state.echo_debug(
+                f"Copying {file_} to persistent temporary location {temp_path.name}"
+            )
+            file_.write(temp_path)
+            path = temp_path.name
+        else:
+            path = file_.local_path
+
+        state.echo_info(f"Opening {file_}")
+        click.launch(str(path))
 
 
 @dcc.command()
-@click.argument("dcc_number", type=str)
+@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
 @click.option(
     "--depth",
     type=click.IntRange(min=0),
@@ -585,7 +713,15 @@ def open_file(ctx, dcc_number, file_number):
 @quiet_option
 @click.pass_context
 def archive(
-    ctx, dcc_number, depth, fetch_related, fetch_referencing, files, skip_category
+    ctx,
+    dcc_number,
+    depth,
+    fetch_related,
+    fetch_referencing,
+    files,
+    prefer_local,
+    skip_category,
+    force,
 ):
     """Archive remote DCC record data locally.
 
@@ -602,30 +738,23 @@ def archive(
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
-    archive = DCCArchive()
 
-    if state.archive_dir is None:
-        click.echo(
-            click.style(
-                "Warning: -s/--archive-dir not specified. Records will be archived to "
-                "a temporary directory.",
-                fg="yellow",
-            )
-        )
-
-    with state.dcc_session() as session:
-        count = _archive_record(
+    with state.dcc_archive() as archive, state.dcc_session() as session:
+        result = _archive_record(
+            state,
             archive,
             dcc_number,
             depth,
             fetch_related,
             fetch_referencing,
             files,
+            prefer_local,
             skip_category,
+            force,
             session,
         )
 
-    click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
+    state.echo(result)
 
 
 @dcc.command()
@@ -640,20 +769,11 @@ def list_archive(ctx):
     variable otherwise this command will list nothing.
     """
     state = ctx.ensure_object(_State)
-    archive = DCCArchive()
 
-    if state.archive_dir is None:
-        click.echo(
-            click.style(
-                "Warning: -s/--archive-dir not specified. Archive will be empty.",
-                fg="yellow",
-            )
-        )
-
-    with state.dcc_session() as session:
-        for record in archive.records(session):
-            echo_record(record, session)
-            click.echo()
+    with state.dcc_archive() as archive, state.dcc_session() as session:
+        for record in archive.records():
+            state.echo_record(record, session)
+            state.echo()  # Empty line.
 
 
 @dcc.command()
@@ -691,7 +811,17 @@ def list_archive(ctx):
 @verbose_option
 @quiet_option
 @click.pass_context
-def scrape(ctx, url, depth, fetch_related, fetch_referencing, files, skip_category):
+def scrape(
+    ctx,
+    url,
+    depth,
+    fetch_related,
+    fetch_referencing,
+    files,
+    prefer_local,
+    skip_category,
+    force,
+):
     """Extract and archive DCC records from URL.
 
     Any text found on the page at URL that appears to be a DCC number is fetched and
@@ -707,40 +837,33 @@ def scrape(ctx, url, depth, fetch_related, fetch_referencing, files, skip_catego
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
-    archive = DCCArchive()
 
-    if state.archive_dir is None:
-        click.echo(
-            click.style(
-                "Warning: -s/--archive-dir not specified. Records will be archived to "
-                "a temporary directory.",
-                fg="yellow",
-            )
-        )
-
-    with state.dcc_session() as session:
+    with state.dcc_archive() as archive, state.dcc_session() as session:
         response = session.get(url)
         parsed = DCCParser(response.text)
 
-        count = 0
+        result = ArchiveResult()
 
         for dcc_number in parsed.html_dcc_numbers():
-            count += _archive_record(
+            result += _archive_record(
+                state,
                 archive,
                 dcc_number,
                 depth,
                 fetch_related,
                 fetch_referencing,
                 files,
+                prefer_local,
                 skip_category,
+                force,
                 session,
             )
 
-    click.echo(f"Archived {count} record(s) at {session.archive_dir.resolve()}")
+    state.echo(result)
 
 
 @dcc.command()
-@click.argument("dcc_number", type=str)
+@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
 @click.option("--title", type=str, help="The title.")
 @click.option("--abstract", type=str, help="The abstract.")
 @click.option(
@@ -772,7 +895,7 @@ def scrape(ctx, url, depth, fetch_related, fetch_referencing, files, skip_catego
 @verbose_option
 @quiet_option
 @click.pass_context
-def update(ctx, dcc_number, title, abstract, keywords, note, related, authors):
+def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, force):
     """Update remote DCC record metadata.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -782,10 +905,9 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors):
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
-    archive = DCCArchive()
 
-    with state.dcc_session() as session:
-        record = archive.fetch_record(dcc_number, session=session)
+    with state.dcc_archive() as archive, state.dcc_session() as session:
+        record = archive.fetch_record(dcc_number, overwrite=force, session=session)
 
         # Apply changes.
         if title:
@@ -804,25 +926,21 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors):
         try:
             record.update(session=session)
         except UnrecognisedDCCRecordError:
-            click.echo(
-                f"Could not find DCC document {repr(record.dcc_number)}.", err=True
+            state.echo_error(
+                f"Could not find DCC document {record.dcc_number}.", exit_=True
             )
-            sys.exit(1)
         except (NotLoggedInError, UnauthorisedError):
-            click.echo(
-                f"You are not authorised to modify {record.dcc_number}.", err=True
+            state.echo_error(
+                f"You are not authorised to modify {record.dcc_number}.", exit_=True
             )
-            sys.exit(1)
         except DryRun:
-            click.echo("Nothing modified.")
-            sys.exit(0)
+            state.echo_info("Nothing modified.", exit_=True)
 
-        # Save the document's changes locally. Set overwrite flag to ensure changes are
-        # made.
-        session.overwrite = True
-        record.archive(session=session)
+        # Save the document's changes locally. Set overwrite argument to ensure changes
+        # are made.
+        archive.archive_record_metadata(record, overwrite=True, session=session)
 
-        click.echo(f"Successfully updated {record.dcc_number}.")
+        state.echo_info(f"Successfully updated {record.dcc_number}.")
 
 
 if __name__ == "__main__":
