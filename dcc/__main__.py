@@ -607,6 +607,15 @@ def open(ctx, dcc_number, xml):
 @archive_dir_option
 @prefer_local_archive_option
 @max_file_size_option
+@click.option(
+    "--locate",
+    is_flag=True,
+    default=False,
+    help=(
+        "Instead of opening the file, open a file browser with the downloaded file "
+        "selected."
+    ),
+)
 @download_progress_option
 @force_option
 @dcc_host_option
@@ -614,7 +623,7 @@ def open(ctx, dcc_number, xml):
 @verbose_option
 @quiet_option
 @click.pass_context
-def open_file(ctx, dcc_number, file_number, prefer_local, force):
+def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
     """Open file attached to DCC record using operating system.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -622,7 +631,8 @@ def open_file(ctx, dcc_number, file_number, prefer_local, force):
 
     FILE_NUMBER should be an integer starting from 1 representing the position of the
     file as listed by 'dcc view DCC_NUMBER'. The file will be opened with the default
-    application for its type as determined by the operating system.
+    application for its type as determined by the operating system. If --locate is
+    specified, the file is instead selected in the default file browser.
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
@@ -680,7 +690,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, force):
             path = file_.local_path
 
         state.echo_info(f"Opening {file_}")
-        click.launch(str(path))
+        click.launch(str(path), locate=locate)
 
 
 @dcc.command()
