@@ -111,7 +111,7 @@ class DCCArchive:
 
         record = None
 
-        if not dcc_number.has_version():
+        if dcc_number.version is None:
             LOGGER.info(
                 f"No version specified in requested record {repr(str(dcc_number))}."
             )
@@ -239,8 +239,18 @@ class DCCArchive:
             session=session,
         )
 
-    def archive_record_metadata(self, record, *, overwrite):
-        """Serialise record metadata in the local archive."""
+    def archive_record_metadata(self, record, *, overwrite=False):
+        """Serialise record metadata in the local archive.
+
+        Parameters
+        ----------
+        record : :class:`.DCCRecord`
+            The record to archive.
+
+        overwrite : bool, optional
+            Whether to overwrite any existing record in the local archive. Defaults to
+            False.
+        """
         meta_path = self.record_meta_path(record.dcc_number)
 
         if meta_path.is_file():
@@ -264,6 +274,16 @@ class DCCArchive:
         ----------
         dcc_number : :class:`.DCCNumber` or str
             The DCC record to load.
+
+        Returns
+        -------
+        :class:`.DCCRecord`
+            The latest record corresponding to `dcc_number`.
+
+        Raises
+        ------
+        :class:`FileNotFoundError`
+            If no record matching `dcc_number` exists in the local archive.
         """
         dcc_number = DCCNumber(dcc_number)
         document_dir = self.document_dir(dcc_number)
@@ -322,7 +342,7 @@ class DCCArchive:
             The record's directory in the local archive.
         """
         # We require a version.
-        if not dcc_number.has_version():
+        if dcc_number.version is None:
             raise NoVersionError()
 
         document_path = self.document_dir(dcc_number)
@@ -450,11 +470,11 @@ class DCCNumber:
             category = str(category)
 
         # Check category is valid.
-        if not DCCNumber.is_category_letter(category):
+        if not DCCNumber.is_valid_category(category):
             raise ValueError(f"Category {repr(category)} is invalid.")
 
         # Check number is valid.
-        if not DCCNumber.is_dcc_numeric(numeric):
+        if not DCCNumber.is_valid_numeric(numeric):
             raise ValueError(f"Number {repr(numeric)} is invalid")
 
         # Validate version if it was found.
@@ -462,7 +482,7 @@ class DCCNumber:
             version = int(version)
 
             # Check version is valid.
-            if not DCCNumber.is_dcc_version(version):
+            if not DCCNumber.is_valid_version(version):
                 raise ValueError(f"Version {repr(version)} is invalid")
 
         self.category = category
@@ -470,7 +490,7 @@ class DCCNumber:
         self.version = version
 
     @classmethod
-    def is_category_letter(cls, letter):
+    def is_valid_category(cls, letter):
         """Check if the specified category letter is valid.
 
         Parameters
@@ -486,7 +506,7 @@ class DCCNumber:
         return letter in cls.document_type_letters
 
     @staticmethod
-    def is_dcc_numeric(numeral):
+    def is_valid_numeric(numeral):
         """Check if the specified number is a valid DCC numeral.
 
         Parameters
@@ -500,6 +520,22 @@ class DCCNumber:
             True if the numeral is valid; False otherwise.
         """
         return int(numeral) > 0
+
+    @staticmethod
+    def is_valid_version(version):
+        """Check if the specified version number is valid.
+
+        Parameters
+        ----------
+        version : int
+            The version to check.
+
+        Returns
+        -------
+        bool
+            True if the version is valid; False otherwise.
+        """
+        return int(version) >= 0
 
     def numbers_equal(self, other):
         """Check if the category and numeric parts of this number and the specified one
@@ -533,26 +569,6 @@ class DCCNumber:
         version_string = self.version_suffix if version else ""
         return f"{self.category}{self.numeric}{version_string}"
 
-    def has_version(self):
-        """Check if the DCC number has a version associated with it."""
-        return self.version is not None
-
-    @staticmethod
-    def is_dcc_version(version):
-        """Check if the specified version number is valid.
-
-        Parameters
-        ----------
-        version : int
-            The version to check.
-
-        Returns
-        -------
-        bool
-            True if the version is valid; False otherwise.
-        """
-        return int(version) >= 0
-
     @property
     def version_suffix(self):
         """The string version suffix for the version number.
@@ -563,7 +579,7 @@ class DCCNumber:
             The version suffix to the DCC numeral, e.g. "-v2".
         """
         # Version 0 should end "x0", otherwise "v1" etc.
-        if not self.has_version():
+        if self.version is None:
             return ""
         elif self.version == 0:
             return "-x0"
@@ -583,8 +599,8 @@ class DCCNumber:
     def __gt__(self, other):
         if (
             not self.numbers_equal(other)
-            or not self.has_version()
-            or not other.has_version
+            or self.version is None
+            or other.version is None
         ):
             return NotImplemented
 
@@ -966,7 +982,7 @@ class DCCRecord:
 
         Returns
         -------
-        list
+        :class:`list`
             The author names.
         """
 
@@ -978,7 +994,7 @@ class DCCRecord:
 
         Returns
         -------
-        list
+        :class:`list`
             The versions.
         """
 
@@ -993,7 +1009,7 @@ class DCCRecord:
 
         Returns
         -------
-        list
+        :class:`list`
             The filenames.
         """
 
@@ -1005,7 +1021,7 @@ class DCCRecord:
 
         Returns
         -------
-        int
+        :class:`int`
             The latest version number.
         """
 
@@ -1026,7 +1042,7 @@ class DCCRecord:
 
         Returns
         -------
-        bool
+        :class:`bool`
             True if the current version is the latest; False otherwise.
         """
         return self.dcc_number.version is self.latest_version_number
@@ -1036,7 +1052,7 @@ class DCCRecord:
 
         Returns
         -------
-        list
+        :class:`list`
             The titles.
         """
         return [str(record) for record in self.referenced_by]
@@ -1046,7 +1062,7 @@ class DCCRecord:
 
         Returns
         -------
-        list
+        :class:`list`
             The titles.
         """
         return [str(record) for record in self.related]
