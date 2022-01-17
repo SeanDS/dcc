@@ -439,7 +439,7 @@ class _State:
         if self.verbosity > logging.WARNING:
             return
 
-        click._echo(*args, **kwargs)
+        self._echo(*args, **kwargs)
 
     def echo_info(self, msg, *args, **kwargs):
         if self.verbosity > logging.INFO:
