@@ -10,11 +10,9 @@ Collaboration](http://www.ligo.org/) [Document Control Center](https://dcc.ligo.
 - Local archival of downloaded content
 - URL scraping and automatic, recursive archival of related documents and files
 
-## Prerequisites
-Access to the DCC requires [ligo.org](https://my.ligo.org/) ("albert.einstein")
-credentials. You only get these if you're part of the LIGO Scientific Collaboration. The
-tool may eventually work with the public DCC without these credentials, but this is not
-a primary aim for the time being.
+## Documentation
+For help in installing and using `dcc`, please visit the [online
+documentation](https://docs.ligo.org/sean-leavey/dcc/).
 
 ## Installation
 `dcc` has the following system requirements:
@@ -35,30 +33,6 @@ favourite Python package manager, e.g. using pip:
 ```bash
 $ pip install dcc
 ```
-
-## Usage
-Typically `dcc` is used via its command line interface (CLI). On most platforms this is
-exposed as the console command `dcc`. To get an overview of the available subcommands,
-type `dcc --help`.
-
-### Kerberos authentication
-You must obtain a Kerberos token to authenticate yourself against the LIGO Kerberos
-directory, otherwise `dcc` will not be able to obtain a session cookie to access the
-DCC. This is one possible way to authenticating with Kerberos:
-
-```bash
-kinit albert.einstein@LIGO.ORG
-```
-
-where `albert.einstein` is your username. Note that the `@LIGO.ORG` realm is case
-sensitive.
-
-With a valid Kerberos ticket, requests made by `dcc` should transparently use your
-credentials. Alternatively, if you do not run `kinit`, you will be asked for your
-credentials the first time the tool needs to connect to the DCC, each time the tool is
-invoked.
-
-You can also revoke your Kerberos token later with `kdestroy`.
 
 ## Credits
 - Sean Leavey `<sean.leavey@ligo.org>`
