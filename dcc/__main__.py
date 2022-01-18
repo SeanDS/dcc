@@ -132,8 +132,7 @@ archive_dir_option = click.option(
         "Directory to use to archive and retrieve downloaded documents and files. "
         "If not specified, the DCC_ARCHIVE environment variable is used if set, "
         "otherwise defaults to the system's temporary directory. To persist archive "
-        "data across invocations of the tool, ensure this is set to a non-temporary "
-        "directory."
+        "data across invocations of the tool, ensure this option is set."
     ),
 )
 prefer_local_archive_option = click.option(
