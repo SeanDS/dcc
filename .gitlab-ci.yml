@@ -45,7 +45,7 @@ docs/html:
     - !reference [".conda:base", before_script]
     # Install ciecplib with conda rather than pip due to its need for upstream
     # dependencies not available in normal environments.
-    - conda create -n dcc python=3.8 ciecplib
+    - conda create -n dcc python=3.8 ciecplib make
     - conda activate dcc
     - pip install dist/dcc-*.*.*-py3-none-any.whl
     # Install development dependencies.
