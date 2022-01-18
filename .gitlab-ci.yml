@@ -1,0 +1,65 @@
+## GitLab CI configuration.
+
+stages:
+  - build
+  - docs
+  - deploy
+
+###############
+# Build stage #
+###############
+
+build/any:
+  stage: build
+  image: python:3.8
+  before_script:
+    - pip install --upgrade build
+  script:
+    - python -m build
+  artifacts:
+    when: always
+    paths:
+      - dist
+
+##############
+# Docs stage #
+##############
+
+docs/html:
+  stage: docs
+  image: python:3.8
+  needs:
+    - build/any
+  before_script:
+    - pip install dist/dcc-*.*.*-py3-none-any.whl
+    # Install development dependencies.
+    - pip install .[dev]
+  script:
+    - cd docs
+    - make html
+    - cd ..
+  after_script:
+    - mkdir sphinxlogs
+    - mv /tmp/sphinx-*.log sphinxlogs
+  artifacts:
+    when: always
+    paths:
+      - docs/build/html
+      - sphinxlogs
+
+################
+# Deploy stage #
+################
+
+# Publish the documentation only for tagged releases.
+pages:
+  stage: deploy
+  needs:
+    - docs/html
+  only:
+    - tags
+  script:
+    - mv docs/build/html public
+  artifacts:
+    paths:
+      - public
