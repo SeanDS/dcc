@@ -1,0 +1,15 @@
+
+# Change log
+All notable changes to `dcc` will be documented in this file.
+
+## 0.7.1
+- Added Sphinx documentation
+- Added simple continuous integration configuration to build and deploy the online
+  documentation
+- Updated project URLs to point to new online documentation
+- CLI:
+  - Rearranged shared options
+  - Changed "no archive dir" warning to an info level message
+  - Added `--locate` flag to `dcc open-file` command
+  - Renamed `dcc list-archives` to `dcc list`
+- Simplified `meta.toml` schema versioning
