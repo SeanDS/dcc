@@ -27,10 +27,12 @@ build/any:
 
 docs/html:
   stage: docs
-  image: python:3.8
+  image: igwn/base:conda
   needs:
     - build/any
   before_script:
+    - mamba create -n dcc python=3.8 ciecplib
+    - mamba activate dcc
     - pip install dist/dcc-*.*.*-py3-none-any.whl
     # Install development dependencies.
     - pip install .[dev]
