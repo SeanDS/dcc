@@ -1,0 +1,81 @@
+## GitLab CI configuration.
+
+# Include IGWN computing templates. These set up common testing environments such as
+# conda.
+include:
+  - project: computing/gitlab-ci-templates
+    # Use a fixed git commit for forward compatibility. This can be periodically changed
+    # to pull in later enhancements to the templates.
+    ref: 14fb263ed46222360c964ab7201682b77d05c8ad
+    file: conda.yml
+
+stages:
+  - build
+  - docs
+  - deploy
+
+###############
+# Build stage #
+###############
+
+build/any:
+  stage: build
+  image: python:3.8
+  before_script:
+    - pip install --upgrade build
+  script:
+    - python -m build
+  artifacts:
+    when: always
+    paths:
+      - dist
+
+##############
+# Docs stage #
+##############
+
+docs/html:
+  stage: docs
+  needs:
+    - build/any
+  extends:
+    - .conda:base
+  before_script:
+    # Run the `before_script` from the template.
+    - !reference [".conda:base", before_script]
+    # Install ciecplib with conda rather than pip due to its need for upstream
+    # dependencies not available in normal environments.
+    - conda create -n dcc python=3.8 ciecplib make
+    - conda activate dcc
+    - pip install dist/dcc-*.*.*-py3-none-any.whl
+    # Install development dependencies.
+    - pip install .[dev]
+  script:
+    - cd docs
+    - make html
+    - cd ..
+  after_script:
+    - mkdir sphinxlogs
+    - mv /tmp/sphinx-*.log sphinxlogs
+  artifacts:
+    when: always
+    paths:
+      - docs/build/html
+      - sphinxlogs
+
+################
+# Deploy stage #
+################
+
+# Publish the documentation only for tagged releases.
+pages:
+  stage: deploy
+  needs:
+    - docs/html
+  only:
+    - tags
+  script:
+    - mv docs/build/html public
+  artifacts:
+    paths:
+      - public
