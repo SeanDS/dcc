@@ -121,6 +121,9 @@ quiet_option = click.option(
     expose_value=False,
     help="Decrease verbosity (can be specified multiple times).",
 )
+files_option = click.option(
+    "--files", is_flag=True, default=False, help="Fetch attached files."
+)
 archive_dir_option = click.option(
     "-s",
     "--archive-dir",
@@ -144,6 +147,27 @@ prefer_local_archive_option = click.option(
         "When DCC_NUMBER doesn't contain a version, prefer latest archived record over "
         "the latest remote record."
     ),
+)
+depth_option = click.option(
+    "--depth",
+    type=click.IntRange(min=0),
+    default=0,
+    show_default=True,
+    help="Recursively fetch referencing documents up to this many levels.",
+)
+fetch_related_option = click.option(
+    "--fetch-related/--no-fetch-related",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Fetch related documents when --depth is nonzero.",
+)
+fetch_referencing_option = click.option(
+    "--fetch-referencing/--no-fetch-referencing",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Fetch referencing documents when --depth is nonzero.",
 )
 force_option = click.option(
     "-f",
@@ -694,28 +718,10 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 
 @dcc.command()
 @click.argument("dcc_number", type=DCC_NUMBER_TYPE)
-@click.option(
-    "--depth",
-    type=click.IntRange(min=0),
-    default=0,
-    show_default=True,
-    help="Recursively fetch referencing documents up to this many levels.",
-)
-@click.option(
-    "--fetch-related/--no-fetch-related",
-    is_flag=True,
-    default=True,
-    show_default=True,
-    help="Fetch related documents when --depth is nonzero.",
-)
-@click.option(
-    "--fetch-referencing/--no-fetch-referencing",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Fetch referencing documents when --depth is nonzero.",
-)
-@click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
+@depth_option
+@fetch_related_option
+@fetch_referencing_option
+@files_option
 @archive_dir_option
 @prefer_local_archive_option
 @max_file_size_option
@@ -793,28 +799,10 @@ def list_(ctx):
 
 @dcc.command()
 @click.argument("url", type=str)
-@click.option(
-    "--depth",
-    type=click.IntRange(min=0),
-    default=0,
-    show_default=True,
-    help="Recursively fetch referencing documents up to this many levels.",
-)
-@click.option(
-    "--fetch-related/--no-fetch-related",
-    is_flag=True,
-    default=True,
-    show_default=True,
-    help="Fetch related documents when --depth is nonzero.",
-)
-@click.option(
-    "--fetch-referencing/--no-fetch-referencing",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Fetch referencing documents when --depth is nonzero.",
-)
-@click.option("--files", is_flag=True, default=False, help="Fetch attached files.")
+@depth_option
+@fetch_related_option
+@fetch_referencing_option
+@files_option
 @archive_dir_option
 @prefer_local_archive_option
 @max_file_size_option
