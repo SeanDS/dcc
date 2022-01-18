@@ -31,8 +31,10 @@ docs/html:
   needs:
     - build/any
   before_script:
+    # Install ciecplib with conda rather than pip due to its need for upstream
+    # dependencies not available in normal environments.
     - mamba create -n dcc python=3.8 ciecplib
-    - mamba activate dcc
+    - conda activate dcc
     - pip install dist/dcc-*.*.*-py3-none-any.whl
     # Install development dependencies.
     - pip install .[dev]
