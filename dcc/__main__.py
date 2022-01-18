@@ -96,34 +96,11 @@ def _set_max_file_size(ctx, _, value):
     state.max_file_size = value
 
 
-download_progress_option = click.option(
-    "--progress/--no-progress",
-    is_flag=True,
-    default=True,
-    callback=_set_progress,
-    expose_value=False,
-    help="Show progress bar.",
-)
-verbose_option = click.option(
-    "-v",
-    "--verbose",
-    count=True,
-    callback=_set_verbosity,
-    expose_value=False,
-    is_eager=True,
-    help="Increase verbosity (can be specified multiple times).",
-)
-quiet_option = click.option(
-    "-q",
-    "--quiet",
-    count=True,
-    callback=_set_verbosity,
-    expose_value=False,
-    help="Decrease verbosity (can be specified multiple times).",
-)
-files_option = click.option(
-    "--files", is_flag=True, default=False, help="Fetch attached files."
-)
+## Arguments.
+dcc_number_argument = click.argument("dcc_number", type=DCC_NUMBER_TYPE)
+
+## Options.
+# Archival.
 archive_dir_option = click.option(
     "-s",
     "--archive-dir",
@@ -135,7 +112,8 @@ archive_dir_option = click.option(
         "Directory to use to archive and retrieve downloaded documents and files. "
         "If not specified, the DCC_ARCHIVE environment variable is used if set, "
         "otherwise defaults to the system's temporary directory. To persist archive "
-        "data across invocations of the tool, ensure this option is set."
+        "data across invocations of the tool, ensure this is set to a non-temporary "
+        "directory."
     ),
 )
 prefer_local_archive_option = click.option(
@@ -177,15 +155,16 @@ force_option = click.option(
     show_default=True,
     help="Always fetch from DCC host and overwrite existing archive data.",
 )
-dry_run_option = click.option(
-    "-n",
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    callback=_set_dry_run,
-    expose_value=False,
-    help="Perform a trial run with no changes made.",
+skip_categories_option = click.option(
+    "--skip-category",
+    type=click.Choice(DCCNumber.document_type_letters),
+    multiple=True,
+    help="Skip document type (can be specified multiple times).",
+)
+
+# Files.
+files_option = click.option(
+    "--files", is_flag=True, default=False, help="Fetch attached files."
 )
 max_file_size_option = click.option(
     "--max-file-size",
@@ -198,12 +177,47 @@ max_file_size_option = click.option(
         "does not, the file is downloaded regardless of its real size."
     ),
 )
-skip_categories_option = click.option(
-    "--skip-category",
-    type=click.Choice(DCCNumber.document_type_letters),
-    multiple=True,
-    help="Skip document type (can be specified multiple times).",
+download_progress_option = click.option(
+    "--progress/--no-progress",
+    is_flag=True,
+    default=True,
+    callback=_set_progress,
+    expose_value=False,
+    help="Show progress bar.",
 )
+
+# Updating.
+dry_run_option = click.option(
+    "-n",
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    callback=_set_dry_run,
+    expose_value=False,
+    help="Perform a trial run with no changes made.",
+)
+
+# Verbosity.
+verbose_option = click.option(
+    "-v",
+    "--verbose",
+    count=True,
+    callback=_set_verbosity,
+    expose_value=False,
+    is_eager=True,
+    help="Increase verbosity (can be specified multiple times).",
+)
+quiet_option = click.option(
+    "-q",
+    "--quiet",
+    count=True,
+    callback=_set_verbosity,
+    expose_value=False,
+    help="Decrease verbosity (can be specified multiple times).",
+)
+
+# Hosts.
 dcc_host_option = click.option(
     "--host",
     callback=_set_dcc_host,
@@ -552,7 +566,7 @@ def dcc():
 
 
 @dcc.command()
-@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
+@dcc_number_argument
 @archive_dir_option
 @prefer_local_archive_option
 @force_option
@@ -597,7 +611,7 @@ def view(ctx, dcc_number, prefer_local, force):
 
 
 @dcc.command()
-@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
+@dcc_number_argument
 @click.option(
     "--xml",
     is_flag=True,
@@ -625,7 +639,7 @@ def open(ctx, dcc_number, xml):
 
 
 @dcc.command()
-@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
+@dcc_number_argument
 @click.argument("file_number", type=click.IntRange(min=1))
 @archive_dir_option
 @prefer_local_archive_option
@@ -717,7 +731,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 
 
 @dcc.command()
-@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
+@dcc_number_argument
 @depth_option
 @fetch_related_option
 @fetch_referencing_option
@@ -866,7 +880,7 @@ def scrape(
 
 
 @dcc.command()
-@click.argument("dcc_number", type=DCC_NUMBER_TYPE)
+@dcc_number_argument
 @click.option("--title", type=str, help="The title.")
 @click.option("--abstract", type=str, help="The abstract.")
 @click.option(
@@ -903,6 +917,9 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
 
     DCC_NUMBER should be a DCC record designation with optional version such as
     'D040105' or 'D040105-v1'.
+
+    Any metadata specified for a particular field overwrites all of the existing record
+    metadata for that field.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
     variable in order to persist downloaded data across invocations of this tool.
