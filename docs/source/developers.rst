@@ -64,6 +64,8 @@ Creating a tagged release
 #. Check out a release branch with the intended new version number with ``git checkout
    -b release/X.Y.Z``, build the project (including documentation) and check it all
    works.
+#. Summarise changes in ``CHANGELOG`` (hint: use ``git log dcc-X.Y.Z..HEAD`` where
+   ``X.Y.Z`` was the previous tagged release) and commit.
 #. Tag the release branch with ``git tag -a dcc-X.Y.Z``, typing "DCC vX.Y.Z" as the
    release message.
 #. Check out the ``develop`` branch again, and merge the release branch with ``git merge
