@@ -354,7 +354,7 @@ class _State:
 
         if archive_dir is None:
             # Use a temporary directory.
-            self.echo_warning(
+            self.echo_info(
                 "-s/--archive-dir not specified. Downloaded records will not be "
                 "persisted."
             )
