@@ -11,7 +11,7 @@ Collaboration](http://www.ligo.org/) [Document Control Center](https://dcc.ligo.
 - URL scraping and automatic, recursive archival of related documents and files
 
 ## Documentation
-For help in installing and using `dcc`, please visit the [online
+For help installing and using `dcc`, please visit the [online
 documentation](https://docs.ligo.org/sean-leavey/dcc/).
 
 ## Installation

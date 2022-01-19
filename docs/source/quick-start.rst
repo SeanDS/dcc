@@ -11,11 +11,12 @@ Authenticating
 
 .. seealso:: :ref:`ligo_org_authentication`
 
-Access to the DCC requires credentials such as a `ligo.org <https://my.ligo.org/>`__
-account. To avoid being asked for your credentials every time ``dcc`` tries to connect
-to the DCC, run ``kinit albert.einstein@LIGO.ORG`` (where ``albert.einstein`` is your
-username and ``LIGO.ORG`` is your Kerberos realm) and enter your password before you use
-``dcc`` for the first time each day (the tickets are typically valid for 24 hours).
+Most DCC records and files require authentication to access, such as that provided by a
+`ligo.org <https://my.ligo.org/>`__ account. By default, ``dcc`` assumes you can
+authenticate yourself and therefore builds and requests URLs for records and files
+within the restricted part of the DCC, prompting for credentials or using an existing
+Kerberos ticket. You can specify the :option:`--public <dcc --public>` flag to restrict
+``dcc`` to accessing public records.
 
 Setting a location to store downloaded records and files
 --------------------------------------------------------

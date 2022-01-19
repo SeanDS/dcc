@@ -4,6 +4,7 @@ import sys
 import logging
 from textwrap import dedent
 from pathlib import Path
+from functools import partial
 from datetime import datetime
 from dataclasses import dataclass
 from contextlib import contextmanager
@@ -48,14 +49,14 @@ class DCCNumberType(click.ParamType):
 DCC_NUMBER_TYPE = DCCNumberType()
 
 
-def _set_progress(ctx, _, value):
-    """Set progress flag."""
+def _set_state_flag(ctx, _, value, *, flag):
+    """Set state flag."""
     state = ctx.ensure_object(_State)
-    state.show_progress = value
+    setattr(state, flag, value)
 
 
 def _set_verbosity(ctx, param, value):
-    """Set verbosity."""
+    """Set state verbosity."""
     state = ctx.ensure_object(_State)
 
     # Quiet verbosity is negative.
@@ -65,38 +66,8 @@ def _set_verbosity(ctx, param, value):
     state.verbosity = value
 
 
-def _set_debug(ctx, _, value):
-    """Set debug flag."""
-    state = ctx.ensure_object(_State)
-    state.debug = value
-
-
-def _set_dcc_host(ctx, _, value):
-    """Set DCC host."""
-    state = ctx.ensure_object(_State)
-    state.dcc_host = value
-
-
-def _set_idp_host(ctx, _, value):
-    """Set identity provide host."""
-    state = ctx.ensure_object(_State)
-    state.idp_host = value
-
-
-def _set_archive_dir(ctx, _, value):
-    """Set archive directory."""
-    state = ctx.ensure_object(_State)
-    state.archive_dir = value
-
-
-def _set_dry_run(ctx, _, value):
-    """Set dry run flag."""
-    state = ctx.ensure_object(_State)
-    state.dry_run = value
-
-
 def _set_max_file_size(ctx, _, value):
-    """Set max file size."""
+    """Set state max file size."""
     state = ctx.ensure_object(_State)
     if value is not None:
         value = value * 1024 * 1024  # Convert to bytes.
@@ -113,7 +84,7 @@ archive_dir_option = click.option(
     "--archive-dir",
     type=click.Path(file_okay=False, dir_okay=True, writable=True),
     envvar="DCC_ARCHIVE",
-    callback=_set_archive_dir,
+    callback=partial(_set_state_flag, flag="archive_dir"),
     expose_value=False,
     help=(
         "Directory to use to archive and retrieve downloaded documents and files. "
@@ -188,7 +159,7 @@ download_progress_option = click.option(
     "--progress/--no-progress",
     is_flag=True,
     default=True,
-    callback=_set_progress,
+    callback=partial(_set_state_flag, flag="show_progress"),
     expose_value=False,
     help="Show progress bar.",
 )
@@ -200,7 +171,7 @@ dry_run_option = click.option(
     is_flag=True,
     default=False,
     show_default=True,
-    callback=_set_dry_run,
+    callback=partial(_set_state_flag, flag="dry_run"),
     expose_value=False,
     help="Perform a trial run with no changes made.",
 )
@@ -227,7 +198,7 @@ debug_option = click.option(
     "--debug",
     is_flag=True,
     default=False,
-    callback=_set_debug,
+    callback=partial(_set_state_flag, flag="debug"),
     expose_value=False,
     is_eager=True,
     help="Show full exceptions when errors are encountered.",
@@ -236,7 +207,7 @@ debug_option = click.option(
 # Hosts.
 dcc_host_option = click.option(
     "--host",
-    callback=_set_dcc_host,
+    callback=partial(_set_state_flag, flag="dcc_host"),
     envvar="DCC_HOST",
     default=DEFAULT_HOST,
     expose_value=False,
@@ -247,13 +218,24 @@ dcc_host_option = click.option(
 )
 idp_host_option = click.option(
     "--idp-host",
-    callback=_set_idp_host,
+    callback=partial(_set_state_flag, flag="idp_host"),
     envvar="ECP_IDP",
     default=DEFAULT_IDP,
     expose_value=False,
     help=(
         f"The identity provider host to use. If not specified, the ECP_IDP environment "
         f"variable is used if set, otherwise {repr(DEFAULT_IDP)}."
+    ),
+)
+public_option = click.option(
+    "--public",
+    is_flag=True,
+    default=False,
+    callback=partial(_set_state_flag, flag="public"),
+    expose_value=False,
+    help=(
+        "Only attempt to retrieve public DCC records. This should avoid triggering an "
+        "authentication check."
     ),
 )
 
@@ -389,6 +371,7 @@ class _State:
         self.dry_run = None
         self.max_file_size = None
         self.show_progress = None
+        self.public = None
         self.archive_is_temporary = None
         self.debug = None
         self._verbosity = logging.WARNING
@@ -403,6 +386,7 @@ class _State:
         return DCCSession(
             self.dcc_host,
             self.idp_host,
+            public=self.public,
             max_file_size=self.max_file_size,
             simulate=self.dry_run,
             download_progress_hook=progress,
@@ -608,6 +592,7 @@ def dcc():
 @force_option
 @dcc_host_option
 @idp_host_option
+@public_option
 @verbose_option
 @quiet_option
 @debug_option
@@ -658,6 +643,7 @@ def view(ctx, dcc_number, prefer_local, force):
 )
 @dcc_host_option
 @idp_host_option
+@public_option
 @verbose_option
 @quiet_option
 @debug_option
@@ -695,6 +681,7 @@ def open(ctx, dcc_number, xml):
 @force_option
 @dcc_host_option
 @idp_host_option
+@public_option
 @verbose_option
 @quiet_option
 @debug_option
@@ -782,6 +769,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 @force_option
 @dcc_host_option
 @idp_host_option
+@public_option
 @verbose_option
 @quiet_option
 @debug_option
@@ -868,6 +856,7 @@ def list_(ctx):
 @force_option
 @dcc_host_option
 @idp_host_option
+@public_option
 @verbose_option
 @quiet_option
 @debug_option

@@ -106,6 +106,11 @@ Options require a value of some sort, whereas flags don't.
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 ``dcc archive``
 ---------------
 
@@ -192,6 +197,11 @@ latest record is fetched from the remote host.
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -263,6 +273,11 @@ optional version such as ``D040105`` or ``D040105-v1``.
     The identity provider host to use. If not specified, the :ref:`ECP_IDP
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
+
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
 
 .. option:: -v, --verbose
 
@@ -356,6 +371,11 @@ cases, the latest record is fetched from the remote host.
     The identity provider host to use. If not specified, the :ref:`ECP_IDP
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
+
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
 
 .. option:: -v, --verbose
 
@@ -455,6 +475,11 @@ version is used. In all other cases, the latest record is fetched from the remot
     The identity provider host to use. If not specified, the :ref:`ECP_IDP
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
+
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
 
 .. option:: -v, --verbose
 
@@ -607,6 +632,11 @@ fetched from the remote host.
     The identity provider host to use. If not specified, the :ref:`ECP_IDP
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
+
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
 
 .. option:: -v, --verbose
 
