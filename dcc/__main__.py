@@ -271,11 +271,10 @@ class ArchiveResult:
 
     def __str__(self):
         return (
-            f"Archive result:\n"
             f"Records archived: {self.archived}, ignored: {self.ignored}, "
             f"unauthorised: {self.unauthorised}, unrecognised: {self.unrecognised}, "
-            f"other error: {self.other_error}\n"
-            f"Files archived: {self.files_archived}"
+            f"other error: {self.other_error}.\n"
+            f"Files archived: {self.files_archived}."
         )
 
     def __add__(self, other):
@@ -374,7 +373,7 @@ def _archive_record(
     try:
         _do_fetch(dcc_number, level=depth)
     except Exception as err:
-        change_exc_msg(err, f"archival error: {err}")
+        change_exc_msg(err, f"Archival error: {err}")
         state.echo_exception(err)
 
     return result
@@ -815,21 +814,24 @@ def archive(
     state = ctx.ensure_object(_State)
 
     with state.dcc_archive() as archive, state.dcc_session() as session:
-        result = _archive_record(
-            state,
-            archive,
-            dcc_number,
-            depth,
-            fetch_related,
-            fetch_referencing,
-            files,
-            prefer_local,
-            skip_category,
-            force,
-            session,
-        )
+        result = ArchiveResult()
 
-    state.echo(result)
+        try:
+            result += _archive_record(
+                state,
+                archive,
+                dcc_number,
+                depth,
+                fetch_related,
+                fetch_referencing,
+                files,
+                prefer_local,
+                skip_category,
+                force,
+                session,
+            )
+        finally:
+            state.echo(result)
 
 
 @dcc.command("list")
@@ -903,22 +905,23 @@ def scrape(
 
         result = ArchiveResult()
 
-        for dcc_number in parsed.html_dcc_numbers():
-            result += _archive_record(
-                state,
-                archive,
-                dcc_number,
-                depth,
-                fetch_related,
-                fetch_referencing,
-                files,
-                prefer_local,
-                skip_category,
-                force,
-                session,
-            )
-
-    state.echo(result)
+        try:
+            for dcc_number in parsed.html_dcc_numbers():
+                result += _archive_record(
+                    state,
+                    archive,
+                    dcc_number,
+                    depth,
+                    fetch_related,
+                    fetch_referencing,
+                    files,
+                    prefer_local,
+                    skip_category,
+                    force,
+                    session,
+                )
+        finally:
+            state.echo(result)
 
 
 @dcc.command()
