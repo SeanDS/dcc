@@ -2,6 +2,9 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
+## 0.7.3 (hotfix)
+- Fixed bug loading archived TOML files
+
 ## 0.7.2
 - Added support for accessing the public DCC
 - Pinned dependency versions
