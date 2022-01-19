@@ -2,6 +2,16 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
+## 0.7.2
+- Added support for accessing the public DCC
+- Pinned dependency versions
+- Fixed `DCCJournalRef` to not require a URL
+- Changed to using `tomli` instead of `toml` for reading/writing TOML
+- CLI:
+  - Archival results now displayed even after keyboard interrupts
+  - Added `--debug` flag to show exceptions
+  - Added `--public` flag for public DCC access
+
 ## 0.7.1
 - Added Sphinx documentation
 - Added simple continuous integration configuration to build and deploy the online
