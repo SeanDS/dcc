@@ -54,16 +54,15 @@ Release steps
 Preliminary steps
 ~~~~~~~~~~~~~~~~~
 
+#. Check the package works and the documentation builds.
 #. Update the API documentation with any changes to the Python modules.
-#. Update ``README.md`` with any new features added since the previous release.
 #. Ensure the CLI's own help strings are consistent with those in the documentation.
 
 Creating a tagged release
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #. Check out a release branch with the intended new version number with ``git checkout
-   -b release/X.Y.Z``, build the project (including documentation) and check it all
-   works.
+   -b release/X.Y.Z``.
 #. Summarise changes in ``CHANGELOG`` (hint: use ``git log dcc-X.Y.Z..HEAD`` where
    ``X.Y.Z`` was the previous tagged release) and commit.
 #. Tag the release branch with ``git tag -a dcc-X.Y.Z``, typing "DCC vX.Y.Z" as the
