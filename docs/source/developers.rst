@@ -71,6 +71,7 @@ Creating a tagged release
    --no-ff release/X.Y.Z``.
 #. Check out the ``master`` branch again, and merge the release branch with ``git merge
    --no-ff release/X.Y.Z``.
+#. Delete the now fully-merged release branch with ``git branch -d release/X.Y.Z``.
 #. Push the branches and tags to the remote with ``git push develop``, ``git push
    master`` and ``git push --tags``.
 
@@ -85,6 +86,11 @@ https://packaging.python.org/en/latest/tutorials/packaging-projects/.
     Uploading to `PyPI <https://pypi.org/>`__ requires an account that is a maintainer of
     the `dcc project <https://pypi.org/project/dcc>`__ there.
 
+#. Check out the tag for the package you wish to publish with ``git checkout
+   dcc-X.Y.Z`` (``setuptools_scm`` used for versioning requires a tagged branch for a
+   pure version like ``0.7.2`` rather than e.g. ``dcc.0.7.3.dev1+ge69f25f``).
+#. Install the tagged package with ``pip install .`` (even if you installed in editable
+   mode before).
 #. Make sure you have the latest version of the ``build`` library by running ``pip
    install --upgrade build``. Build an sdist and wheel using ``python -m build`` from
    the project directory. Check the ``dist`` directory contains a
@@ -97,3 +103,5 @@ https://packaging.python.org/en/latest/tutorials/packaging-projects/.
    https://test.pypi.org/project/dcc-YOUR-USERNAME-HERE.
 #. Upload the release to `PyPI <https://pypi.org/>`__ using ``twine upload dist/*`` and
    verify everything looks ok at https://pypi.org/project/dcc.
+#. Check out the ``develop`` branch again with ``pip checkout develop`` and reinstall in
+   editable mode with ``pip install -e .[dev]``.
