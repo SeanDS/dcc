@@ -91,6 +91,10 @@ Options require a value of some sort, whereas flags don't.
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
 
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
 .. option:: --host
 
     The DCC host to use. If not specified, the :ref:`DCC_HOST <env_dcc_host>`
@@ -198,6 +202,10 @@ latest record is fetched from the remote host.
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
 
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
 ``dcc list``
 ------------
 
@@ -222,6 +230,10 @@ List records in the local archive.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc open``
 ------------
@@ -261,6 +273,10 @@ optional version such as ``D040105`` or ``D040105-v1``.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc open-file``
 -----------------
@@ -350,6 +366,10 @@ cases, the latest record is fetched from the remote host.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc scrape``
 --------------
@@ -446,6 +466,10 @@ version is used. In all other cases, the latest record is fetched from the remot
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
 
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
 ``dcc update``
 --------------
 
@@ -526,6 +550,10 @@ metadata for that field.
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
 
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
 ``dcc view``
 ------------
 
@@ -589,6 +617,10 @@ fetched from the remote host.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 Environment variables
 ---------------------

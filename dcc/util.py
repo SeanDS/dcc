@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-# Allowed mode pairs.
+# Allowed opened file mode pairs.
 _MODE_MAP = (
     ("r", "r"),
     ("r", "+"),
@@ -16,6 +16,11 @@ _MODE_MAP = (
     ("+", "r"),
     ("+", "w"),
 )
+
+
+def change_exc_msg(exc, new_msg):
+    """Change exception message."""
+    exc.args = (new_msg,) + exc.args[1:]
 
 
 @contextmanager
