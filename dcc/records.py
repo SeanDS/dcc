@@ -969,7 +969,7 @@ class DCCRecord:
         """
         path = Path(path)
 
-        with path.open("r") as fobj:
+        with path.open("rb") as fobj:
             LOGGER.debug(f"Reading metadata from {path}.")
             item = tomli.load(fobj)
 
