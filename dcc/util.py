@@ -23,6 +23,20 @@ def change_exc_msg(exc, new_msg):
     exc.args = (new_msg,) + exc.args[1:]
 
 
+def remove_none(container):
+    """Remove None values from the specified container.
+
+    Adapted from https://stackoverflow.com/a/20558778/2251982.
+    """
+    if isinstance(container, (list, tuple, set)):
+        return type(container)(remove_none(x) for x in container if x is not None)
+    elif isinstance(container, dict):
+        return type(container)(
+            (k, remove_none(v)) for k, v in container.items() if v is not None
+        )
+    return container
+
+
 @contextmanager
 def opened_file(fobj, mode):
     """Get an open file regardless of whether a string or an already open file is
