@@ -18,6 +18,11 @@ class DCCSession(CIECPSession):
     idp : str
         The identity provider host to use.
 
+    public : bool, optional
+        If True, attempt to retrieve public DCC records (those with URLs ending
+        ``/public``); otherwise attempt to retrieve standard DCC records. Defaults to
+        False.
+
     max_file_size : int, optional
         Maximum file size to download, in bytes. Defaults to None, which means no limit.
 
@@ -39,6 +44,7 @@ class DCCSession(CIECPSession):
         self,
         host,
         idp,
+        public=False,
         max_file_size=None,
         simulate=False,
         download_progress_hook=None,
@@ -47,6 +53,7 @@ class DCCSession(CIECPSession):
         super().__init__(idp=idp, **kwargs)
 
         self.host = host
+        self.public = public
         self.max_file_size = max_file_size
         self.simulate = simulate
         self.download_progress_hook = download_progress_hook
@@ -55,7 +62,10 @@ class DCCSession(CIECPSession):
 
     def post(self, *args, **kwargs):
         if self.simulate:
-            LOGGER.info(f"Simulating POST: {args}, {kwargs}")
+            LOGGER.info(
+                "Simulation enabled; skipping update (view debug logs for intended "
+                "request)."
+            )
             raise DryRun()
 
         return super().post(*args, **kwargs)
@@ -75,7 +85,9 @@ class DCCSession(CIECPSession):
         :class:`requests.Response`
             The HTTP response.
         """
-        response = self.get(self.dcc_record_url(dcc_number))
+        url = self.dcc_record_url(dcc_number)
+        LOGGER.debug(f"GET record at {url}")
+        response = self.get(url)
         response.raise_for_status()
         return response
 
@@ -92,7 +104,9 @@ class DCCSession(CIECPSession):
         :class:`requests.Response`
             The HTTP response.
         """
-        response = self.get(dcc_file.url, stream=True)
+        url = dcc_file.url
+        LOGGER.debug(f"GET file at {url}")
+        response = self.get(url, stream=True)
         response.raise_for_status()
         content_length = response.headers.get("content-length")
 
@@ -134,7 +148,9 @@ class DCCSession(CIECPSession):
         data["DocumentChange"] = "Change Latest Version"
 
         # Submit form data.
-        response = self.post(dcc_update_metadata_url, data)
+        url = dcc_update_metadata_url
+        LOGGER.debug(f"POST record update at {url} with data {data}")
+        response = self.post(url, data)
         response.raise_for_status()
         return response
 
@@ -196,6 +212,8 @@ class DCCSession(CIECPSession):
             The URL.
         """
         pieces = [dcc_number.category, dcc_number.numeric, dcc_number.version_suffix]
+        if self.public:
+            pieces.append("/public")
         if xml:
             pieces.append("/of=xml")
         return self._build_dcc_url("".join(pieces))
@@ -206,13 +224,3 @@ class DCCSession(CIECPSession):
             path = f"/{path}"
 
         return f"{self.protocol}://{self.host}{path}"
-
-    def _build_dcc_author_url(self, author):
-        """Build DCC author page URL from the specified author.
-
-        :param author: author to download
-        """
-
-        return self._build_dcc_url(
-            f"cgi-bin/private/DocDB/ListBy?authorid={author.uid}"
-        )

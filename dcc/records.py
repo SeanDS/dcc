@@ -9,10 +9,11 @@ from itertools import takewhile
 from functools import total_ordering, wraps
 from tempfile import TemporaryFile
 import datetime
-import toml
+import tomli
+import tomli_w
 from .sessions import DCCSession
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
-from .util import opened_file
+from .util import opened_file, remove_none
 from .env import DEFAULT_HOST, DEFAULT_IDP
 from .exceptions import NoVersionError, FileTooLargeError
 
@@ -62,12 +63,7 @@ class DCCArchive:
             if not path.is_dir():
                 continue
 
-            # Try to parse document.
-            try:
-                yield self.latest_record(path.name)
-            except Exception:
-                # Not a valid document directory, or empty.
-                pass
+            yield from self.document_records(path.name)
 
     @ensure_session
     def fetch_record(
@@ -267,45 +263,62 @@ class DCCArchive:
         meta_path.parent.mkdir(parents=True, exist_ok=True)
         record.write(meta_path)
 
+    def document_records(self, dcc_number):
+        """Load all DCC records for a given DCC number from the local archive.
+
+        Parameters
+        ----------
+        dcc_number : :class:`.DCCNumber` or str
+            The DCC number to load records for (if present, the version is ignored).
+
+        Returns
+        -------
+        :class:`list`
+            The :class:`records <.DCCRecord>` corresponding to `dcc_number` in the local
+            archive.
+        """
+        dcc_number = DCCNumber(dcc_number)
+        document_dir = self.document_dir(dcc_number)
+
+        records = []
+
+        if document_dir.exists():
+            for path in document_dir.iterdir():
+                if not path.is_dir():
+                    continue
+
+                # Parse the record if exists.
+                records.append(DCCRecord.read(self._meta_path(path)))
+
+        return records
+
     def latest_record(self, dcc_number):
         """Load the latest DCC record from the local archive.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber` or str
-            The DCC record to load.
+            The DCC number to load the latest record for (if present, the version is
+            ignored).
 
         Returns
         -------
         :class:`.DCCRecord`
-            The latest record corresponding to `dcc_number`.
+            The latest record corresponding to `dcc_number` in the local archive.
 
         Raises
         ------
         :class:`FileNotFoundError`
-            If no record matching `dcc_number` exists in the local archive.
+            If no records matching `dcc_number` exist in the local archive.
         """
-        dcc_number = DCCNumber(dcc_number)
-        document_dir = self.document_dir(dcc_number)
-
-        if document_dir.exists():
-            records = []
-
-            for path in document_dir.iterdir():
-                if not path.is_dir():
-                    continue
-
-                # Parse the record if exists.
-                try:
-                    records.append(DCCRecord.read(self._meta_path(path)))
-                except Exception:
-                    pass
-
-            if records:
-                # Return the record with the latest version.
-                return max(records, key=lambda record: record.dcc_number)
-
-        raise FileNotFoundError(f"No locally archived record exists for {dcc_number}.")
+        records = self.document_records(dcc_number)
+        try:
+            # Return the record with the latest version.
+            return max(records, key=lambda record: record.dcc_number)
+        except ValueError:
+            raise FileNotFoundError(
+                f"No locally archived records exist for {dcc_number}."
+            )
 
     def document_dir(self, dcc_number):
         """The local archive directory for the specified DCC number, without a
@@ -698,7 +711,7 @@ class DCCJournalRef:
     volume: int
     page: str  # Not necessarily numeric!
     citation: str
-    url: str
+    url: str = None  # Not always present, e.g. P000011
 
     def __str__(self):
         journal = self.journal if self.journal else "Unknown journal"
@@ -733,6 +746,10 @@ class DCCRecord:
         return f"{self.dcc_number}: {repr(self.title)}"
 
     def __post_init__(self):
+        ## Lists have to be lists, for serialisation support.
+        self.authors = list(self.authors)
+        self.other_versions = list(self.other_versions)
+        self.files = list(self.files)
         # Ensure referencing documents don't include this one.
         pred = lambda number: number.numeric != self.dcc_number.numeric
         self.referenced_by = list(takewhile(pred, self.referenced_by))
@@ -920,15 +937,21 @@ class DCCRecord:
         """
         # Create a metadata dict.
         item = dict(__schema__="1")  # Do this first so it's at the top of the file.
-        item.update(asdict(self))
+        itemdict = asdict(self)
+        # Strip out None values, which TOML can't serialise.
+        itemdict = remove_none(itemdict)
+        item.update(itemdict)
 
         # Apply some corrections.
         for number, file_ in enumerate(item["files"]):
             # Remove fields that can be reproduced from other data.
-            file_.pop("local_path")
+            file_.pop("local_path", None)
 
-        with opened_file(path, "w") as fobj:
-            toml.dump(item, fobj)
+        with opened_file(path, "wb") as fobj:
+            tomli_w.dump(item, fobj, multiline_strings=True)
+
+        # Verification: check the file can be parsed again.
+        assert self.read(path)
 
     @classmethod
     def read(cls, path):
@@ -948,10 +971,11 @@ class DCCRecord:
 
         with path.open("r") as fobj:
             LOGGER.debug(f"Reading metadata from {path}.")
-            item = toml.load(fobj)
+            item = tomli.load(fobj)
 
-        assert item["__schema__"] == "1"
-        del item["__schema__"]
+        # Check the file came from us.
+        assert item["__schema__"] == "1", "Unsupported schema"
+        item.pop("__schema__", None)
 
         item["dcc_number"] = DCCNumber(**item["dcc_number"])
         if "authors" in item:

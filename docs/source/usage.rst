@@ -12,21 +12,25 @@ view --help``.
 
 .. _ligo_org_authentication:
 
-Authenticating with the identity provider host
-----------------------------------------------
+Obtaining a Kerberos ticket for accessing restricted resources
+--------------------------------------------------------------
 
-Access to the DCC requires credentials such as those from `ligo.org
+Access to most DCC records and files requires credentials such as those from `ligo.org
 <https://my.ligo.org/>`__ or another provider. You typically only get these if you're a
 member of a scientific collaboration.
 
-It's easiest to authenticate once before you start using ``dcc``, by running ``kinit
-albert.einstein@LIGO.ORG`` (where ``albert.einstein`` is your login). Subsequent
-interaction with the DCC will transparently use this token. The token can be verified
-with ``klist`` and revoked with ``kdestroy``.
+By default, ``dcc`` assumes you can authenticate yourself and therefore builds and
+requests URLs for records and files within the restricted part of the DCC, prompting for
+credentials or using an existing Kerberos ticket. To avoid being prompted every time
+``dcc`` is invoked, run ``kinit albert.einstein@LIGO.ORG`` (where ``albert.einstein`` is
+your login and ``LIGO.ORG`` is your Kerberos realm) before first use each day (tickets
+are typically granted for 24 hours). Subsequent interaction with the DCC will
+transparently use a Kerberos token if one is available. The token can be verified with
+``klist`` and revoked with ``kdestroy``.
 
-If you don't first run ``kinit``, you will be asked to enter your credentials the first
-time ``dcc`` interacts with the DCC, and the resulting authentication lasts only until
-the program exits and you will need to enter them again the next time you run the tool.
+You can specify the :option:`--public <dcc --public>` flag to restrict ``dcc`` to
+accessing public records. With this flag, you don't need to enter your credentials or
+obtain a Kerberos ticket, though you will only be able to access public resources.
 
 .. _local_archive:
 

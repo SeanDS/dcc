@@ -91,6 +91,10 @@ Options require a value of some sort, whereas flags don't.
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
 
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
 .. option:: --host
 
     The DCC host to use. If not specified, the :ref:`DCC_HOST <env_dcc_host>`
@@ -101,6 +105,11 @@ Options require a value of some sort, whereas flags don't.
     The identity provider host to use. If not specified, the :ref:`ECP_IDP
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
+
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
 
 ``dcc archive``
 ---------------
@@ -188,6 +197,11 @@ latest record is fetched from the remote host.
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -197,6 +211,10 @@ latest record is fetched from the remote host.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc list``
 ------------
@@ -222,6 +240,10 @@ List records in the local archive.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc open``
 ------------
@@ -252,6 +274,11 @@ optional version such as ``D040105`` or ``D040105-v1``.
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -261,6 +288,10 @@ optional version such as ``D040105`` or ``D040105-v1``.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc open-file``
 -----------------
@@ -341,6 +372,11 @@ cases, the latest record is fetched from the remote host.
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -350,6 +386,10 @@ cases, the latest record is fetched from the remote host.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc scrape``
 --------------
@@ -436,6 +476,11 @@ version is used. In all other cases, the latest record is fetched from the remot
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -445,6 +490,10 @@ version is used. In all other cases, the latest record is fetched from the remot
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 ``dcc update``
 --------------
@@ -526,6 +575,10 @@ metadata for that field.
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
 
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
 ``dcc view``
 ------------
 
@@ -580,6 +633,11 @@ fetched from the remote host.
     <env_idp_host>` environment variable is used if set, otherwise
     https://login.ligo.org/.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC records. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -589,6 +647,10 @@ fetched from the remote host.
 
     Decrease the program's verbosity. This can be specified multiple times to further
     decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
 
 Environment variables
 ---------------------
