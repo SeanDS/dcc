@@ -429,10 +429,10 @@ class DCCNumber:
         "M": "Management or Policy",
         "P": "Publications",
         "Q": "Quality Assurance documents",
-        "R": "__unknown__",  # Exists (e.g. M1700260 XML) but not public.
+        "R": "Operations Change Requests",
         "S": "Serial numbers",
         "T": "Techical notes",
-        "X": "__unknown__",  # Exists (e.g. T1100286 XML) but not public.
+        "X": "Safety Incident Reports",
     }
 
     def __init__(self, category, numeric=None, version=None):
