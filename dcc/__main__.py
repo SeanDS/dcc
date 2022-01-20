@@ -4,6 +4,7 @@ import sys
 import logging
 from textwrap import dedent
 from pathlib import Path
+from urllib.parse import urlparse
 from functools import partial
 from datetime import datetime
 from dataclasses import dataclass
@@ -632,7 +633,7 @@ def view(ctx, dcc_number, prefer_local, force):
         state.echo_record(record, session)
 
 
-@dcc.command()
+@dcc.command("open")
 @dcc_number_argument
 @click.option(
     "--xml",
@@ -648,7 +649,7 @@ def view(ctx, dcc_number, prefer_local, force):
 @quiet_option
 @debug_option
 @click.pass_context
-def open(ctx, dcc_number, xml):
+def open_(ctx, dcc_number, xml):
     """Open remote DCC record page in the default browser.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -877,6 +878,8 @@ def scrape(
     Any text found on the page at URL that appears to be a DCC number is fetched and
     archived.
 
+    URL can be a web address or a path to a local file (or stdin).
+
     If any found DCC number contains a version and is present in the local archive, it
     is used unless --force is specified. If the DCC number does not contain a version, a
     version exists in the local archive, and --prefer-local is specified, the latest
@@ -888,10 +891,18 @@ def scrape(
     """
     state = ctx.ensure_object(_State)
 
-    with state.dcc_archive() as archive, state.dcc_session() as session:
-        response = session.get(url)
-        parsed = DCCParser(response.text)
+    parsed_url = urlparse(url)
 
+    with state.dcc_archive() as archive, state.dcc_session() as session:
+        if parsed_url.netloc:
+            # The URL is remote.
+            text = session.get(url).text
+        else:
+            # Assume the URL is a local file.
+            with click.open_file(url, "rb") as fobj:
+                text = fobj.read()
+
+        parsed = DCCParser(text)
         result = ArchiveResult()
 
         try:

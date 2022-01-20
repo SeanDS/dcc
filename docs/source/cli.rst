@@ -398,8 +398,11 @@ cases, the latest record is fetched from the remote host.
 
 Extract and archive DCC records from URL.
 
-Any text found on the page at :option:`URL <dcc scrape URL>` that appears to be a DCC
-number is fetched and archived.
+Strings in text or URLs found on the page at :option:`URL <dcc scrape URL>` that appear
+to be DCC numbers are fetched and archived.
+
+:option:`URL <dcc scrape URL>` can be a web address or a path to a local file (or
+stdin).
 
 If any found DCC number contains a version and is present in the local archive, it is
 used unless :option:`--force <dcc scrape --force>` is specified. If the DCC number does
@@ -409,7 +412,8 @@ version is used. In all other cases, the latest record is fetched from the remot
 
 .. option:: URL
 
-    The URL to scrape for DCC numbers.
+    The URL to scrape for DCC numbers. Can be a web address or a path to a local file
+    (or stdin).
 
 .. option:: --depth
 
