@@ -742,7 +742,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
             # prevents the application from opening it. Copy the file to a temporary
             # location that won't be # deleted when the context ends.
             temp_path = NamedTemporaryFile(
-                prefix="dcc-", suffix=f"-{file_.filename.name}", delete=False
+                prefix="dcc-", suffix=f"-{file_.filename}", delete=False
             )
             state.echo_debug(
                 f"Copying {file_} to persistent temporary location {temp_path.name}"
