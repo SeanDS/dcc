@@ -7,7 +7,6 @@ import shutil
 from dataclasses import dataclass, field, asdict
 from itertools import takewhile
 from functools import total_ordering, wraps
-from tempfile import TemporaryFile
 import datetime
 import tomli
 import tomli_w
@@ -52,18 +51,18 @@ class DCCArchive:
         self.archive_dir = Path(archive_dir)
 
     def records(self):
-        """Records in the local archive.
+        """Records in the local archive, including revisions.
 
         Yields
         ------
         :class:`.DCCRecord`
-            The latest version of a record in the archive.
+            A record in the archive.
         """
         for path in self.archive_dir.iterdir():
             if not path.is_dir():
                 continue
 
-            yield from self.document_records(path.name)
+            yield from self.revisions(path.name)
 
     @ensure_session
     def fetch_record(
@@ -119,7 +118,7 @@ class DCCArchive:
                     "setting ignore_version to False)."
                 )
                 try:
-                    record = self.latest_record(dcc_number)
+                    record = self.latest_revision(dcc_number)
                 except FileNotFoundError:
                     LOGGER.info("No locally archived record of any version exists.")
                 else:
@@ -133,7 +132,7 @@ class DCCArchive:
                 )
         else:
             if not overwrite:
-                meta_file = self.record_meta_path(dcc_number)
+                meta_file = self.revision_meta_path(dcc_number)
 
                 if meta_file.exists():
                     # Retrieve the cached record.
@@ -154,7 +153,7 @@ class DCCArchive:
             record = DCCRecord.fetch(dcc_number, session=session)
 
             # Store/update record in the local archive.
-            self.archive_record_metadata(record, overwrite=overwrite)
+            self.archive_revision_metadata(record, overwrite=overwrite)
 
         if fetch_files:
             self.fetch_record_files(
@@ -170,8 +169,8 @@ class DCCArchive:
     def fetch_record_files(
         self, record, *, ignore_too_large=False, overwrite=False, session
     ):
-        """Fetch a DCC record, either from the local archive or from the remote DCC
-        host, adding it to the local archive if necessary.
+        """Fetch the files in the specified DCC record. If any file does not exist in
+        the local archive, it is fetched and archived from the DCC.
 
         Parameters
         ----------
@@ -196,7 +195,7 @@ class DCCArchive:
             The fetched :class:`files <.DCCFile>`.
         """
         return record.fetch_files(
-            self.record_dir(record.dcc_number),
+            self.revision_dir(record.dcc_number),
             ignore_too_large=ignore_too_large,
             overwrite=overwrite,
             session=session,
@@ -204,8 +203,8 @@ class DCCArchive:
 
     @ensure_session
     def fetch_record_file(self, record, number, *, overwrite=False, session):
-        """Fetch a DCC record, either from the local archive or from the remote DCC
-        host, adding it to the local archive if necessary.
+        """Fetch the file at position `number` in the specified DCC record. If the file
+        does not exist in the local archive, it is fetched and archived from the DCC.
 
         Parameters
         ----------
@@ -213,7 +212,8 @@ class DCCArchive:
             The record to fetch files for.
 
         number : int
-            The file number to fetch.
+            The file number to fetch, as listed in the record metadata, starting from
+            position 1.
 
         overwrite : bool, optional
             Whether to overwrite existing local files with those fetched remotely.
@@ -230,13 +230,13 @@ class DCCArchive:
         """
         return record.fetch_file(
             number,
-            self.record_dir(record.dcc_number),
+            self.revision_dir(record.dcc_number),
             overwrite=overwrite,
             session=session,
         )
 
-    def archive_record_metadata(self, record, *, overwrite=False):
-        """Serialise record metadata in the local archive.
+    def archive_revision_metadata(self, record, *, overwrite=False):
+        """Serialise revision metadata in the local archive.
 
         Parameters
         ----------
@@ -244,10 +244,10 @@ class DCCArchive:
             The record to archive.
 
         overwrite : bool, optional
-            Whether to overwrite any existing record in the local archive. Defaults to
-            False.
+            If True, overwrite any existing revision in the local archive; otherwise
+            do nothing. Defaults to False.
         """
-        meta_path = self.record_meta_path(record.dcc_number)
+        meta_path = self.revision_meta_path(record.dcc_number)
 
         if meta_path.is_file():
             if not overwrite:
@@ -259,59 +259,67 @@ class DCCArchive:
 
             LOGGER.info(f"Overwriting {meta_path}")
 
-        LOGGER.info(f"Archiving {record} metadata to {meta_path}")
+        LOGGER.info(f"Archiving {record} metadata to {meta_path}.")
         meta_path.parent.mkdir(parents=True, exist_ok=True)
-        record.write(meta_path)
 
-    def document_records(self, dcc_number):
-        """Load all DCC records for a given DCC number from the local archive.
+        # First write the metadata to a temporary file in the same directory, then move
+        # it to the final location, to ensure atomicity.
+        # Just create a new file directly (don't use `tempfile`) so that the new
+        # temporary file has the target directory's intended mode.
+        meta_path_tmp = meta_path.parent / f".{meta_path.name}-tmp"
+        record.write(meta_path_tmp)
+        # NOTE: remove str() for Python >= 3.9.
+        shutil.move(str(meta_path_tmp), str(meta_path))  # Atomic when dirs match.
+
+    def revisions(self, dcc_number):
+        """All revisions in the local archive corresponding to the specified DCC number.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber` or str
-            The DCC number to load records for (if present, the version is ignored).
+            The DCC number. If a version is specified, it is ignored.
 
         Returns
         -------
         :class:`list`
-            The :class:`records <.DCCRecord>` corresponding to `dcc_number` in the local
-            archive.
+            The :class:`records <.DCCRecord>` in the local archive corresponding to the
+            revisions of `dcc_number`.
         """
         dcc_number = DCCNumber(dcc_number)
         document_dir = self.document_dir(dcc_number)
 
-        records = []
+        revisions = []
 
         if document_dir.exists():
-            for path in document_dir.iterdir():
-                if not path.is_dir():
+            for revision_path in document_dir.iterdir():
+                if not revision_path.is_dir():
                     continue
 
-                # Parse the record if exists.
-                records.append(DCCRecord.read(self._meta_path(path)))
+                # Parse the revision if exists.
+                revisions.append(DCCRecord.read(self._meta_path(revision_path)))
 
-        return records
+        return revisions
 
-    def latest_record(self, dcc_number):
-        """Load the latest DCC record from the local archive.
+    def latest_revision(self, dcc_number):
+        """The latest revision in the local archive of the document corresponding to the
+        specified DCC number.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber` or str
-            The DCC number to load the latest record for (if present, the version is
-            ignored).
+            The DCC number. If a version is specified, it is ignored.
 
         Returns
         -------
         :class:`.DCCRecord`
-            The latest record corresponding to `dcc_number` in the local archive.
+            The latest revision in the local archive of `dcc_number`.
 
         Raises
         ------
         :class:`FileNotFoundError`
-            If no records matching `dcc_number` exist in the local archive.
+            If no revisions of `dcc_number` exist in the local archive.
         """
-        records = self.document_records(dcc_number)
+        records = self.revisions(dcc_number)
         try:
             # Return the record with the latest version.
             return max(records, key=lambda record: record.dcc_number)
@@ -321,38 +329,45 @@ class DCCArchive:
             )
 
     def document_dir(self, dcc_number):
-        """The local archive directory for the specified DCC number, without a
-        particular version.
+        """The directory in the local archive of the document corresponding to the
+        specified DCC number.
 
-        This directory is used to store versioned records.
+        This directory contains subdirectories corresponding to revisions (versions) of
+        the document, and may not yet exist.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber`
-            The DCC number.
+            The DCC number. If a version is specified, it is ignored.
 
         Returns
         -------
         :class:`pathlib.Path`
-            The document's directory in the local archive.
+            The directory in the local archive corresponding to the document.
         """
         return self.archive_dir / dcc_number.string_repr(version=False)
 
-    def record_dir(self, dcc_number):
-        """The local archive directory for the specified DCC number, with a particular
-        version.
+    def revision_dir(self, dcc_number):
+        """The directory in the local archive of the revision corresponding to the
+        specified versioned DCC number.
 
-        This directory is used to store data for a particular version of a DCC record.
+        This directory is used to store data for a particular version of a DCC record,
+        and may not yet exist.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber`
-            The DCC number.
+            The DCC number. Must contain a version.
 
         Returns
         -------
         :class:`pathlib.Path`
-            The record's directory in the local archive.
+            The directory in the local archive corresponding to the document revision.
+
+        Raises
+        ------
+        :class:`.NoVersionError`
+            If `dcc_number` does not contain a version.
         """
         # We require a version.
         if dcc_number.version is None:
@@ -361,20 +376,29 @@ class DCCArchive:
         document_path = self.document_dir(dcc_number)
         return document_path / dcc_number.string_repr(version=True)
 
-    def record_meta_path(self, dcc_number):
-        """The meta file in the local archive for the specified DCC number.
+    def revision_meta_path(self, dcc_number):
+        """The path to the meta file in the local archive of the revision corresponding
+        to the specified DCC number.
+
+        The meta file may not yet exist.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber`
-            The DCC number.
+            The DCC number. Must contain a version.
 
         Returns
         -------
         :class:`pathlib.Path`
-            The record's meta file path in the local archive.
+            The path to the meta file in the local archive corresponding to the document
+            revision.
+
+        Raises
+        ------
+        :class:`.NoVersionError`
+            If `dcc_number` does not contain a version.
         """
-        return self._meta_path(self.record_dir(dcc_number))
+        return self._meta_path(self.revision_dir(dcc_number))
 
     def _meta_path(self, directory):
         return directory / "meta.toml"
@@ -663,24 +687,22 @@ class DCCFile:
             else:
                 file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Fetch the file from the DCC. First download it to a temporary file, then
-            # move it to the final location if the download was successful. This ensures
-            # interrupted downloads don't leave partially downloaded (corrupt) files in
-            # the archive.
-            with TemporaryFile("w+b") as src:
+            # First fetch the file from the DCC to a temporary file in the same
+            # directory, then move it to the final location, to ensure atomicity.
+            # Just create a new file directly (don't use `tempfile`) so that the new
+            # temporary file has the target directory's intended mode.
+            file_path_tmp = file_path.parent / f".{file_path.name}-tmp"
+            with file_path_tmp.open("w+b") as fobj:
                 # Get the file contents from the DCC.
                 LOGGER.info(f"Downloading {self}")
                 for chunk in session.fetch_file_contents(self):
-                    src.write(chunk)
+                    fobj.write(chunk)
 
-                # Rewind the file so the copy below takes the whole file.
-                src.seek(0)
-
-                LOGGER.info(f"Saving {self} to {file_path}")
-                with file_path.open("wb") as dst:
-                    shutil.copyfileobj(src, dst)
-
-                self.local_path = file_path
+            # Move to the final location.
+            LOGGER.info(f"Saving {self} to {file_path}")
+            # NOTE: remove str() for Python >= 3.9.
+            shutil.move(str(file_path_tmp), str(file_path))  # Atomic when dirs match.
+            self.local_path = file_path
 
     def write(self, path):
         """Write file to the file system.

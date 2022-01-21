@@ -1006,7 +1006,7 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
 
         # Save the document's changes locally. Set overwrite argument to ensure changes
         # are made.
-        archive.archive_record_metadata(record, overwrite=True)
+        archive.archive_revision_metadata(record, overwrite=True)
 
         state.echo(f"Successfully updated {record.dcc_number}.")
 
