@@ -95,14 +95,16 @@ archive_dir_option = click.option(
         "directory."
     ),
 )
-prefer_local_archive_option = click.option(
-    "--prefer-local",
+ignore_version_option = click.option(
+    "--ignore-version",
     is_flag=True,
     default=False,
     show_default=True,
     help=(
-        "When DCC_NUMBER doesn't contain a version, prefer latest archived record over "
-        "the latest remote record."
+        "Fetch the latest local version of the specified document regardless of the "
+        "version given. If no local version exists, the requested (or, if no "
+        "version is specified, the latest) version of the document will still be "
+        "fetched from the DCC."
     ),
 )
 depth_option = click.option(
@@ -279,7 +281,7 @@ def _archive_record(
     fetch_related,
     fetch_referencing,
     files,
-    prefer_local,
+    ignore_version,
     skip_categories,
     force,
     session,
@@ -304,7 +306,7 @@ def _archive_record(
         try:
             record = archive.fetch_record(
                 number,
-                prefer_local_archive=prefer_local,
+                ignore_version=ignore_version,
                 overwrite=force,
                 fetch_files=files,
                 ignore_too_large=True,
@@ -589,7 +591,7 @@ def dcc():
 @dcc.command()
 @dcc_number_argument
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -598,7 +600,7 @@ def dcc():
 @quiet_option
 @debug_option
 @click.pass_context
-def view(ctx, dcc_number, prefer_local, force):
+def view(ctx, dcc_number, ignore_version, force):
     """View DCC record metadata.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -606,7 +608,7 @@ def view(ctx, dcc_number, prefer_local, force):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local is specified, the latest local
+    exists in the local archive, and --ignore-version is specified, the latest local
     version is used. In all other cases, the latest record is fetched from the remote
     host.
 
@@ -619,7 +621,7 @@ def view(ctx, dcc_number, prefer_local, force):
         try:
             record = archive.fetch_record(
                 dcc_number,
-                prefer_local_archive=prefer_local,
+                ignore_version=ignore_version,
                 overwrite=force,
                 session=session,
             )
@@ -667,7 +669,7 @@ def open_(ctx, dcc_number, xml):
 @dcc_number_argument
 @click.argument("file_number", type=click.IntRange(min=1))
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @max_file_size_option
 @click.option(
     "--locate",
@@ -687,7 +689,7 @@ def open_(ctx, dcc_number, xml):
 @quiet_option
 @debug_option
 @click.pass_context
-def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
+def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
     """Open file attached to DCC record using operating system.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -700,7 +702,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local is specified, the latest local
+    exists in the local archive, and --ignore-version is specified, the latest local
     version is used. In all other cases, the latest record is fetched from the remote
     host.
 
@@ -714,7 +716,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
         try:
             record = archive.fetch_record(
                 dcc_number,
-                prefer_local_archive=prefer_local,
+                ignore_version=ignore_version,
                 overwrite=force,
                 session=session,
             )
@@ -763,7 +765,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 @fetch_referencing_option
 @files_option
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @max_file_size_option
 @skip_categories_option
 @download_progress_option
@@ -782,7 +784,7 @@ def archive(
     fetch_related,
     fetch_referencing,
     files,
-    prefer_local,
+    ignore_version,
     skip_category,
     force,
 ):
@@ -793,7 +795,7 @@ def archive(
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local is specified, the latest local
+    exists in the local archive, and --ignore-version is specified, the latest local
     version is used. In all other cases, the latest record is fetched from the remote
     host.
 
@@ -814,7 +816,7 @@ def archive(
                 fetch_related,
                 fetch_referencing,
                 files,
-                prefer_local,
+                ignore_version,
                 skip_category,
                 force,
                 session,
@@ -850,7 +852,7 @@ def list_(ctx):
 @fetch_referencing_option
 @files_option
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @max_file_size_option
 @skip_categories_option
 @download_progress_option
@@ -869,7 +871,7 @@ def scrape(
     fetch_related,
     fetch_referencing,
     files,
-    prefer_local,
+    ignore_version,
     skip_category,
     force,
 ):
@@ -882,7 +884,7 @@ def scrape(
 
     If any found DCC number contains a version and is present in the local archive, it
     is used unless --force is specified. If the DCC number does not contain a version, a
-    version exists in the local archive, and --prefer-local is specified, the latest
+    version exists in the local archive, and --ignore-version is specified, the latest
     local version is used. In all other cases, the latest record is fetched from the
     remote host.
 
@@ -915,7 +917,7 @@ def scrape(
                     fetch_related,
                     fetch_referencing,
                     files,
-                    prefer_local,
+                    ignore_version,
                     skip_category,
                     force,
                     session,

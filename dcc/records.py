@@ -70,7 +70,7 @@ class DCCArchive:
         self,
         dcc_number,
         *,
-        prefer_local_archive=False,
+        ignore_version=False,
         overwrite=False,
         fetch_files=False,
         ignore_too_large=False,
@@ -84,9 +84,9 @@ class DCCArchive:
         dcc_number : :class:`.DCCNumber` or str
             The DCC record to fetch.
 
-        prefer_local_archive : bool, optional
-            Whether to prefer the archive over fetching latest remote records. Defaults
-            to False.
+        ignore_version : bool, optional
+            Whether to ignore the version in `dcc_number` when deterimining if the
+            document exists in the archive already. Defaults to False.
 
         overwrite : bool, optional
             Whether to overwrite existing records and files in the archive with those
@@ -112,11 +112,11 @@ class DCCArchive:
                 f"No version specified in requested record {repr(str(dcc_number))}."
             )
 
-            if prefer_local_archive:
+            if ignore_version:
                 # Use the latest archived record, if found.
                 LOGGER.info(
                     "Searching for latest record in the local archive (disable by "
-                    "setting prefer_local_archive to False)."
+                    "setting ignore_version to False)."
                 )
                 try:
                     record = self.latest_record(dcc_number)
@@ -128,8 +128,8 @@ class DCCArchive:
                 # We can't know for sure that the local archive contains the latest
                 # version, so we have to fetch the remote.
                 LOGGER.info(
-                    "Ignoring local archive (disable by setting "
-                    "DCCArchive.prefer_local_archive to True)."
+                    "No version specified; fetching latest record from DCC regardless "
+                    "of local archive (disable by setting ignore_version to True)."
                 )
         else:
             if not overwrite:
