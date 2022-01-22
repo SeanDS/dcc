@@ -3,7 +3,7 @@ dcc
 
 ``dcc`` is a Python-based, primarily command line driven tool for interacting with the
 `LIGO DCC <https://dcc.ligo.org/>`__ and similar document servers based on `DocDB
-<https://github.com/ericvaandering/DocDB/>`__
+<https://github.com/ericvaandering/DocDB/>`__.
 
 ``dcc`` attempts to provide a powerful yet intuitive and user-friendly command line
 interface to the DCC, allowing for quick and automated retrieval and update of records
