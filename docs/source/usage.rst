@@ -77,35 +77,58 @@ a directory.
 Record archival
 ---------------
 
-A DCC record can be archived locally using :program:`dcc archive`. This downloads a
-record, and optionally its files, and stores them in the :ref:`local archive
-<local_archive>` for later retrieval. For example:
+DCC records can be archived locally using :program:`dcc archive`. This downloads
+records' metadata, and optionally attached files, and stores them in the :ref:`local
+archive <local_archive>` for later retrieval. The command requires an input file
+containing the DCC numbers to archive, separated by whitespace. For example:
 
 .. code-block:: text
 
     # Archive the latest version of T010075:
-    $ dcc archive T010075
+    $ echo "T010075" > to-archive.txt
+    $ dcc archive -s /path/to/archive to-archive.txt
 
     # Archive a specific version of T010075:
-    $ dcc archive T010075-v1
+    $ echo "T010075-v1" > to-archive.txt
+    $ dcc archive -s /path/to/archive to-archive.txt
 
-    # Full DCC numbers are also allowed:
-    $ dcc archive LIGO-T010075-v1
+The input can also be set to ``stdin`` by specifying ``-``.
 
 Files are not automatically archived. To fetch them too, specify the :option:`--files
 <dcc --files>` flag. By default, files of any size will be retrieved. To limit the
 maximum size of files retrieved, specify the :option:`--max-file-size <dcc
 --max-file-size>` option, specifying a maximum file size in MB.
 
+Scraping a URL for links to DCC records
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The command :program:`dcc convert` scrapes DCC numbers from a file or URL and writes
+them to a file:
+
+.. code-block:: text
+
+    # Fetch DCC numbers in the "System Engineering" topic and write to 'out.txt'.
+    $ dcc convert https://dcc.ligo.org/cgi-bin/private/DocDB/ListBy?topicid=18 out.txt
+
+It is easy to combine :program:`dcc convert` and :program:`dcc archive` to automatically
+scrape a URL for DCC numbers and archive them locally. For example:
+
+.. code-block:: text
+
+    # Fetch the "System Engineering" topic page, then extract and archive its DCC
+    # numbers.
+    $ dcc convert https://dcc.ligo.org/cgi-bin/private/DocDB/ListBy?topicid=18 - | dcc archive -s /path/to/archive -
+
 Archival of referenced and referencing records
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 DCC records can contain "related to" and "referenced by" records, and :program:`dcc
 archive` can archive them as well. The :option:`--depth <dcc --depth>` option controls
-how far from the original document the archival can take place. For example, setting
-:option:`--depth <dcc --depth>` to 1 will fetch the records that are listed in the
-specified DCC number, and setting it to 2 will additionally fetch the references of
-those documents. The default is 0, meaning only the specified record is fetched.
+how far in the chain from the original documents the archival can traverse. For example,
+setting :option:`--depth <dcc --depth>` to 1 will fetch the records that are listed in
+the specified DCC numbers, and setting it to 2 will additionally fetch the references of
+those documents. The default is 0, meaning only the records specified in the input are
+fetched.
 
 When :option:`--depth <dcc --depth>` is nonzero, by default only "related to" records
 are fetched. To also fetch "referenced by" records, specify the
@@ -127,24 +150,10 @@ For example, the referenced documents of ``T010075`` can be archived alongside
 .. code-block:: text
 
     # Fetch "related to" documents as well as T010075 itself:
-    $ dcc archive T010075 --depth 1
+    $ echo "T010075" | dcc archive -s /path/to/archive --depth 1 -
 
     # Fetch "referenced by" documents as well:
-    $ dcc archive T010075 --depth 1 --fetch-referencing
-
-Scraping a URL for links to DCC records
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The command :program:`dcc scrape` is similar to :program:`dcc archive`, but it scrapes
-DCC numbers from a URL instead of a record. It shares the same parameters and options as
-:program:`dcc archive` but instead parses the specified URL, looks for DCC numbers, and
-archives each of them in turn. This can be used for example to fetch records in a
-particular DCC category:
-
-.. code-block:: text
-
-    # Fetch records in the "System Engineering" topic:
-    $ dcc scrape https://dcc.ligo.org/cgi-bin/private/DocDB/ListBy?topicid=18
+    $ echo "T010075" | dcc archive -s /path/to/archive --depth 1 --fetch-referencing -
 
 .. _updating_record_metadata:
 

@@ -50,6 +50,29 @@ class DCCArchive:
     def __init__(self, archive_dir):
         self.archive_dir = Path(archive_dir)
 
+    @property
+    def documents(self):
+        """The documents in the local archive.
+
+        These are DCC numbers corresponding to the documents in the local archive,
+        without version suffices.
+
+        Yields
+        ------
+        :class:`.DCCNumber`
+            A DCC number in the local archive.
+        """
+        for path in self.archive_dir.iterdir():
+            if not path.is_dir():
+                continue
+
+            try:
+                yield DCCNumber(path.name)
+            except Exception:
+                # Not a valid DCC number.
+                pass
+
+    @property
     def records(self):
         """Records in the local archive, including revisions.
 
@@ -58,10 +81,8 @@ class DCCArchive:
         :class:`.DCCRecord`
             A record in the archive.
         """
-        for path in self.archive_dir.iterdir():
-            if not path.is_dir():
-                continue
-
+        for document in self.documents:
+            path = self.document_dir(document)
             yield from self.revisions(path.name)
 
     @ensure_session
@@ -412,7 +433,7 @@ class DCCAuthor:
     uid: int = None
 
     def __str__(self):
-        return f"{self.name} (id {self.uid})"
+        return self.name
 
 
 @dataclass
