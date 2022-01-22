@@ -71,6 +71,7 @@ Full contents
     installation
     quick-start
     usage
+    examples
     cli
     developers
     api
