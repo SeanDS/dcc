@@ -1,13 +1,19 @@
 # Configuration file for the Sphinx documentation builder.
 
+import sys
+import inspect
+from pathlib import Path
 from datetime import datetime
-from dcc import AUTHORS
+import dcc
+from dcc import AUTHORS, __version__
 
 # -- Project information -----------------------------------------------------
 
 project = "dcc"
 author = ", ".join(AUTHORS)
 copyright = f"{datetime.now().year}, {author}"
+version = "develop" if ".dev" in __version__ else __version__
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 
@@ -17,6 +23,7 @@ copyright = f"{datetime.now().year}, {author}"
 extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autodoc",
+    "sphinx.ext.linkcode",
     "sphinxcontrib.programoutput",
     "numpydoc",
 ]
@@ -42,6 +49,56 @@ intersphinx_mapping = {
 autosummary_generate = True
 
 numpydoc_show_class_members = False
+
+# -- Options for viewcode extension ------------------------------------------
+
+
+def linkcode_resolve(domain, info):
+    """Determine the URL corresponding to Python object.
+
+    This code is stolen with thanks from `scipy` (view `gwpy`).
+    """
+    if domain != "py" or not info["module"]:
+        return None
+
+    def find_source(module, fullname):
+        obj = sys.modules[module]
+
+        for part in fullname.split("."):
+            obj = getattr(obj, part)
+
+        try:  # Unwrap a decorator.
+            obj = obj.im_func.func_closure[0].cell_contents
+        except (AttributeError, TypeError):
+            pass
+
+        # Get filename.
+        sourcepath = Path(inspect.getsourcefile(obj))
+        filename = sourcepath.relative_to(Path(dcc.__file__).parent).as_posix()
+        # Get line numbers of this object.
+        source, lineno = inspect.getsourcelines(obj)
+
+        if lineno:
+            return "{}#L{:d}-L{:d}".format(
+                filename,
+                lineno,
+                lineno + len(source) - 1,
+            )
+
+        return filename
+
+    try:
+        fileref = find_source(info["module"], info["fullname"])
+    except (
+        AttributeError,  # Object not found.
+        OSError,  # File not found.
+        TypeError,  # Source for object not found.
+        ValueError,  # File not from dcc.
+    ):
+        return None
+
+    return f"https://git.ligo.org/sean-leavey/dcc/-/tree/{version}/dcc/{fileref}"
+
 
 # -- Options for HTML output -------------------------------------------------
 
