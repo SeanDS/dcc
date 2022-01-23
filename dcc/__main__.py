@@ -397,7 +397,7 @@ class _State:
 
     @contextmanager
     def dcc_archive(self):
-        if archive_dir := self.archive_dir is not None:
+        if (archive_dir := self.archive_dir) is not None:
             self.archive_is_temporary = False
             yield self._dcc_archive(archive_dir)
         else:
