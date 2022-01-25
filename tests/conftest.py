@@ -11,7 +11,7 @@ DATA_DIR = Path(__file__).parent / "data"
 def xml_response():
     def _(item):
         if isinstance(item, DCCNumber):
-            identifier = item.string_repr()
+            identifier = item.format()
         else:
             raise NotImplementedError
 
@@ -25,7 +25,7 @@ def xml_response():
 @pytest.fixture
 def ref_record():
     def _(dcc_number, **kwargs):
-        identifier = dcc_number.string_repr()
+        identifier = dcc_number.format()
         path = DATA_DIR / f"dcc-number-{identifier}-meta.toml"
         return DCCRecord.read(path)
 
