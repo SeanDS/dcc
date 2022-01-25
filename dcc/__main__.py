@@ -15,7 +15,7 @@ import click
 
 from . import __version__, PROGRAM, AUTHORS, PROJECT_URL
 from .records import DCCArchive, DCCNumber, DCCAuthor
-from .sessions import DCCSession
+from .sessions import DCCAuthenticatedSession, DCCUnauthenticatedSession
 from .parsers import DCCParser
 from .env import DEFAULT_HOST, DEFAULT_IDP
 from .util import change_exc_msg
@@ -386,14 +386,23 @@ class _State:
             if self.verbose:
                 progress = self._download_progress_hook
 
-        return DCCSession(
-            self.dcc_host,
-            self.idp_host,
-            public=self.public,
+        kwargs = dict(
             max_file_size=self.max_file_size,
             simulate=self.dry_run,
             download_progress_hook=progress,
         )
+
+        if self.public:
+            self.echo_info("Creating unauthenticated DCC session.")
+            session_type = DCCUnauthenticatedSession
+        else:
+            self.echo_info(
+                f"Creating authenticated DCC session with IDP {self.idp_host}."
+            )
+            session_type = DCCAuthenticatedSession
+            kwargs["idp"] = self.idp_host
+
+        return session_type(self.dcc_host, **kwargs)
 
     @contextmanager
     def dcc_archive(self):

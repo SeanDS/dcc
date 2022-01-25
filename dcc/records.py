@@ -10,7 +10,7 @@ from functools import total_ordering, wraps
 import datetime
 import tomli
 import tomli_w
-from .sessions import DCCSession
+from .sessions import DCCAuthenticatedSession
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file, remove_none
 from .env import DEFAULT_HOST, DEFAULT_IDP
@@ -27,7 +27,7 @@ def ensure_session(func):
     def wrapped(*args, session=None, **kwargs):
         if session is None:
             LOGGER.debug(f"Using default session for called {func}.")
-            with DCCSession(DEFAULT_HOST, DEFAULT_IDP) as session:
+            with DCCAuthenticatedSession(DEFAULT_HOST, DEFAULT_IDP) as session:
                 return func(*args, session=session, **kwargs)
 
         return func(*args, session=session, **kwargs)

@@ -1,27 +1,21 @@
 """Communication with the DCC."""
 
+import abc
 import logging
+from requests import Session
 from ciecplib import Session as CIECPSession
 from .exceptions import FileTooLargeError, DryRun
 
 LOGGER = logging.getLogger(__name__)
 
 
-class DCCSession(CIECPSession):
-    """A SAML/ECP-authenticated DCC HTTP fetcher.
+class DCCSession(metaclass=abc.ABCMeta):
+    """A DCC HTTP fetcher.
 
     Parameters
     ----------
     host : str
         The DCC host to use.
-
-    idp : str
-        The identity provider host to use.
-
-    public : bool, optional
-        If True, attempt to retrieve public DCC records (those with URLs ending
-        ``/public``); otherwise attempt to retrieve standard DCC records. Defaults to
-        False.
 
     max_file_size : int, optional
         Maximum file size to download, in bytes. Defaults to None, which means no limit.
@@ -43,22 +37,18 @@ class DCCSession(CIECPSession):
     def __init__(
         self,
         host,
-        idp,
-        public=False,
+        *,
         max_file_size=None,
         simulate=False,
         download_progress_hook=None,
         **kwargs,
     ):
-        super().__init__(idp=idp, **kwargs)
+        super().__init__(**kwargs)
 
         self.host = host
-        self.public = public
         self.max_file_size = max_file_size
         self.simulate = simulate
         self.download_progress_hook = download_progress_hook
-
-        LOGGER.debug(f"Created session at DCC host {host} using IDP {idp}.")
 
     def post(self, *args, **kwargs):
         if self.simulate:
@@ -69,8 +59,6 @@ class DCCSession(CIECPSession):
             raise DryRun()
 
         return super().post(*args, **kwargs)
-
-    post.__doc__ = CIECPSession.post.__doc__
 
     def fetch_record_page(self, dcc_number):
         """Fetch a DCC record page.
@@ -195,6 +183,7 @@ class DCCSession(CIECPSession):
 
         return data
 
+    @abc.abstractmethod
     def dcc_record_url(self, dcc_number, xml=True):
         """Build a DCC record URL given the specified DCC number.
 
@@ -211,12 +200,7 @@ class DCCSession(CIECPSession):
         str
             The URL.
         """
-        pieces = [dcc_number.category, dcc_number.numeric, dcc_number.version_suffix]
-        if self.public:
-            pieces.append("/public")
-        if xml:
-            pieces.append("/of=xml")
-        return self._build_dcc_url("".join(pieces))
+        raise NotImplementedError()
 
     def _build_dcc_url(self, path=""):
         """Build DCC URL from the specified path."""
@@ -224,3 +208,81 @@ class DCCSession(CIECPSession):
             path = f"/{path}"
 
         return f"{self.protocol}://{self.host}{path}"
+
+
+class DCCAuthenticatedSession(DCCSession, CIECPSession):
+    """A SAML/ECP-authenticated DCC HTTP fetcher.
+
+    Parameters
+    ----------
+    host : str
+        The DCC host to use.
+
+    idp : str
+        The identity provider host to use.
+
+    Other Parameters
+    ----------------
+    max_file_size : int, optional
+        Maximum file size to download, in bytes. Defaults to None, which means no limit.
+
+    simulate : bool, optional
+        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
+        exception.
+
+    download_progress_hook : iterable, optional
+        Function taking object, iterable (the streamed download chunks) and total length
+        arguments, yielding each provided chunk. This can be used to display a progress
+        bar. Note: the hook is only called if the response provides a Content-Length
+        header.
+    """
+
+    def dcc_record_url(self, dcc_number, xml=True):
+        pieces = [dcc_number.category, dcc_number.numeric, dcc_number.version_suffix]
+
+        if xml:
+            pieces.append("/of=xml")
+
+        return self._build_dcc_url("".join(pieces))
+
+    dcc_record_url.__doc__ = DCCSession.dcc_record_url.__doc__
+
+
+class DCCUnauthenticatedSession(DCCSession, Session):
+    """An unauthenticated DCC HTTP fetcher.
+
+    Parameters
+    ----------
+    host : str
+        The DCC host to use.
+
+    Other Parameters
+    ----------------
+    max_file_size : int, optional
+        Maximum file size to download, in bytes. Defaults to None, which means no limit.
+
+    simulate : bool, optional
+        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
+        exception.
+
+    download_progress_hook : iterable, optional
+        Function taking object, iterable (the streamed download chunks) and total length
+        arguments, yielding each provided chunk. This can be used to display a progress
+        bar. Note: the hook is only called if the response provides a Content-Length
+        header.
+    """
+
+    def dcc_record_url(self, dcc_number, xml=True):
+        pieces = [
+            dcc_number.category,
+            dcc_number.numeric,
+            dcc_number.version_suffix,
+            "/public",
+        ]
+
+        if xml:
+            pieces.append("/of=xml")
+
+        return self._build_dcc_url("".join(pieces))
+
+    dcc_record_url.__doc__ = DCCSession.dcc_record_url.__doc__
