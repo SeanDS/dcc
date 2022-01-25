@@ -92,7 +92,11 @@ containing the DCC numbers to archive, separated by whitespace. For example:
     $ echo "T010075-v1" > to-archive.txt
     $ dcc archive -s /path/to/archive to-archive.txt
 
-The input can also be set to ``stdin`` by specifying ``-``.
+The input can also be set to ``stdin`` by specifying ``-``:
+
+.. code-block:: text
+
+    $ echo "T010075" | dcc archive -s /path/to/archive -
 
 Files are not automatically archived. To fetch them too, specify the :option:`--files
 <dcc --files>` flag. By default, files of any size will be retrieved. To limit the
