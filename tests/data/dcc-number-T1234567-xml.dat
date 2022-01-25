@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<docdb href="https://dcc.example.org/public/" project="LIGO" shortproject="LIGO" version="3.4.1">
+<document href="https://dcc.example.org/cgi-bin/DocDB/ShowDocument?docid=1234" id="1234">
+    <docrevision docid="2" href="https://dcc.example.org/cgi-bin/DocDB/ShowDocument?docid=2&amp;amp;version=2" modified="2015-02-17 17:55:30" version="2">
+        <dccnumber>T1234567</dccnumber>
+        <title><![CDATA[This is the title.]]></title>
+        <doctype id="10">
+            <name><![CDATA[T - Technical notes]]></name>
+            <description><![CDATA[Technical notes used internally or released but not intended for publication and not considered reviewed]]></description>
+        </doctype>
+        <author id="123">
+            <firstname>John</firstname>
+            <lastname>Doe</lastname>
+            <fullname>John Doe</fullname>
+            <employeenumber>123</employeenumber>
+        </author>
+        <author id="321">
+            <firstname>Jane</firstname>
+            <lastname>Doe</lastname>
+            <fullname>Jane Doe</fullname>
+            <employeenumber>321</employeenumber>
+        </author>
+        <topic id="18" parentid="1">
+            <name><![CDATA[System Engineering]]></name>
+            <description><![CDATA[System Engineering]]></description>
+        </topic>
+        <abstract><![CDATA[This is the abstract.]]></abstract>
+        <note><![CDATA[This is the note.]]></note>
+        <publicationinfo><![CDATA[]]></publicationinfo>
+        <otherversions>
+            <docrevision docid="1" href="https://dcc.example.org/cgi-bin/DocDB/ShowDocument?docid=1&amp;amp;version=1" modified="2015-02-16 14:21:15" version="1"/>
+            <docrevision docid="2" href="https://dcc.example.org/cgi-bin/DocDB/ShowDocument?docid=2&amp;amp;version=2" modified="2015-02-17 17:55:30" version="2"/>
+        </otherversions>
+    </docrevision>
+</document>
+</docdb>

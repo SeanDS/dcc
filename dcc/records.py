@@ -483,12 +483,12 @@ class DCCNumber:
     def __init__(self, category, numeric=None, version=None):
         # Copy constructor.
         if isinstance(category, DCCNumber):
-            numeric = str(category.numeric)
+            numeric = category.numeric
             try:
                 version = int(category.version)
             except TypeError:
                 pass
-            category = str(category.category)
+            category = category.category
         elif numeric is None:
             # Full number specified in the first argument. Check it's long enough.
             if len(category) < 2:
@@ -513,87 +513,38 @@ class DCCNumber:
                     )
 
                 # Numeric part is between second character and index.
-                numeric = str(category[1:hyphen_index])
+                numeric = category[1:hyphen_index]
 
                 # Version is last part, two places beyond start of hyphen.
-                version = int(category[hyphen_index + 2 :])
+                version = category[hyphen_index + 2 :]
             else:
                 # Numeric is everything after first character.
-                numeric = str(category[1:])
+                numeric = category[1:]
 
             # Category should be first.
-            category = str(category[0])
-        else:
-            # Category is the first argument.
-            category = str(category)
+            category = category[0]
 
         # Check category is valid.
-        if not DCCNumber.is_valid_category(category):
+        category = str(category)
+        if category not in self.document_type_letters:
             raise ValueError(f"Category {repr(category)} is invalid.")
 
         # Check number is valid.
-        if not DCCNumber.is_valid_numeric(numeric):
+        numeric = str(numeric)
+        if not numeric.isdigit():
             raise ValueError(f"Number {repr(numeric)} is invalid")
 
         # Validate version if it was found.
         if version is not None:
-            version = int(version)
-
             # Check version is valid.
-            if not DCCNumber.is_valid_version(version):
+            if not str(version).isdigit():
                 raise ValueError(f"Version {repr(version)} is invalid")
+
+            version = int(version)
 
         self.category = category
         self.numeric = numeric
         self.version = version
-
-    @classmethod
-    def is_valid_category(cls, letter):
-        """Check if the specified category letter is valid.
-
-        Parameters
-        ----------
-        letter : str
-            The category letter to check.
-
-        Returns
-        -------
-        bool
-            True if the category letter is valid; False otherwise.
-        """
-        return letter in cls.document_type_letters
-
-    @staticmethod
-    def is_valid_numeric(numeral):
-        """Check if the specified number is a valid DCC numeral.
-
-        Parameters
-        ----------
-        numeral : str
-            The DCC numeral to check.
-
-        Returns
-        -------
-        bool
-            True if the numeral is valid; False otherwise.
-        """
-        return int(numeral) > 0
-
-    @staticmethod
-    def is_valid_version(version):
-        """Check if the specified version number is valid.
-
-        Parameters
-        ----------
-        version : int
-            The version to check.
-
-        Returns
-        -------
-        bool
-            True if the version is valid; False otherwise.
-        """
-        return int(version) >= 0
 
     def numbers_equal(self, other):
         """Check if the category and numeric parts of this number and the specified one
@@ -777,7 +728,7 @@ class DCCRecord:
     note: str = None
     publication_info: str = None
     journal_reference: DCCJournalRef = None
-    other_versions: List[DCCNumber] = None
+    other_versions: List[int] = None
     creation_date: datetime.datetime = None
     contents_revision_date: datetime.datetime = None
     metadata_revision_date: datetime.datetime = None
@@ -789,6 +740,7 @@ class DCCRecord:
         return f"{self.dcc_number}: {repr(self.title)}"
 
     def __post_init__(self):
+        self.dcc_number = DCCNumber(self.dcc_number)
         ## Lists have to be lists, for serialisation support.
         self.authors = list(self.authors)
         self.other_versions = list(self.other_versions)
