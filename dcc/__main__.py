@@ -334,7 +334,7 @@ def _archive_record(
             result.other_error += 1
             return
 
-        seen.add(record.dcc_number.string_repr(version=False))
+        seen.add(record.dcc_number.format(version=False))
         result.archived += 1
 
         if files:
@@ -343,14 +343,14 @@ def _archive_record(
         if level > 0:
             if fetch_related:
                 for ref in record.related_to:
-                    if ref.string_repr(version=False) in seen:
+                    if ref.format(version=False) in seen:
                         continue
 
                     _do_fetch(ref, level=level - 1)
 
             if fetch_referencing:
                 for ref in record.referenced_by:
-                    if ref.string_repr(version=False) in seen:
+                    if ref.format(version=False) in seen:
                         continue
 
                     _do_fetch(ref, level=level - 1)

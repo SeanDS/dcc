@@ -132,7 +132,7 @@ class DCCSession(metaclass=abc.ABCMeta):
         # Prepare form data dict with the requested updates.
         data = self._build_dcc_metadata_form(dcc_record)
 
-        data["DocumentsField"] = dcc_record.dcc_number.string_repr(version=False)
+        data["DocumentsField"] = dcc_record.dcc_number.format(version=False)
         data["DocumentChange"] = "Change Latest Version"
 
         # Submit form data.
@@ -146,7 +146,7 @@ class DCCSession(metaclass=abc.ABCMeta):
         """Build form data representing the specified metadata update."""
 
         # Extract data from records.
-        related = [ref.string_repr(version=False) for ref in dcc_record.related_to]
+        related = [ref.format(version=False) for ref in dcc_record.related_to]
 
         if dcc_record.authors:
             reversed_authors = []

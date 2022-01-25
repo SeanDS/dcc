@@ -366,7 +366,7 @@ class DCCArchive:
         :class:`pathlib.Path`
             The directory in the local archive corresponding to the document.
         """
-        return self.archive_dir / dcc_number.string_repr(version=False)
+        return self.archive_dir / dcc_number.format(version=False)
 
     def revision_dir(self, dcc_number):
         """The directory in the local archive of the revision corresponding to the
@@ -395,7 +395,7 @@ class DCCArchive:
             raise NoVersionError()
 
         document_path = self.document_dir(dcc_number)
-        return document_path / dcc_number.string_repr(version=True)
+        return document_path / dcc_number.format(version=True)
 
     def revision_meta_path(self, dcc_number):
         """The path to the meta file in the local archive of the revision corresponding
@@ -546,23 +546,7 @@ class DCCNumber:
         self.numeric = numeric
         self.version = version
 
-    def numbers_equal(self, other):
-        """Check if the category and numeric parts of this number and the specified one
-        match.
-
-        Parameters
-        ----------
-        other : :class:`.DCCNumber`
-            The other DCC number to check.
-
-        Returns
-        -------
-        bool
-            True if the other number and category match; False otherwise.
-        """
-        return other.category == self.category and other.numeric == self.numeric
-
-    def string_repr(self, version=True):
+    def format(self, version=True):
         """String representation of the DCC number, with optional version number.
 
         Parameters
@@ -596,24 +580,31 @@ class DCCNumber:
             return f"-v{self.version}"
 
     def __str__(self):
-        return self.string_repr(version=True)
+        return self.format(version=True)
 
     def __eq__(self, other):
         try:
-            # Compare the category, number and version.
-            return self.numbers_equal(other) and other.version == self.version
+            return all(
+                (
+                    self.category == other.category,
+                    self.numeric == other.numeric,
+                    self.version == other.version,
+                )
+            )
         except Exception:
             return NotImplemented
 
     def __gt__(self, other):
-        if (
-            not self.numbers_equal(other)
-            or self.version is None
-            or other.version is None
-        ):
+        if self.version is None or other.version is None:
             return NotImplemented
 
-        return self.version > other.version
+        return all(
+            (
+                self.category == other.category,
+                self.numeric == other.numeric,
+                self.version > other.version,
+            )
+        )
 
 
 @dataclass
@@ -742,13 +733,13 @@ class DCCRecord:
     def __post_init__(self):
         self.dcc_number = DCCNumber(self.dcc_number)
         ## Lists have to be lists, for serialisation support.
-        self.authors = list(self.authors)
-        self.other_versions = list(self.other_versions)
-        self.files = list(self.files)
+        self.authors = list(self.authors or [])
+        self.other_versions = list(self.other_versions or [])
+        self.files = list(self.files or [])
         # Ensure referencing documents don't include this one.
         pred = lambda number: number.numeric != self.dcc_number.numeric
-        self.referenced_by = list(takewhile(pred, self.referenced_by))
-        self.related_to = list(takewhile(pred, self.related_to))
+        self.referenced_by = list(takewhile(pred, self.referenced_by or []))
+        self.related_to = list(takewhile(pred, self.related_to or []))
 
     @classmethod
     @ensure_session
@@ -779,7 +770,12 @@ class DCCRecord:
         parsed_dcc_number = DCCNumber(*parsed.dcc_number_pieces)
 
         # Make sure the record matches the request.
-        if not parsed_dcc_number.numbers_equal(dcc_number):
+        if any(
+            (
+                parsed_dcc_number.category != dcc_number.category,
+                parsed_dcc_number.numeric != dcc_number.numeric,
+            )
+        ):
             raise ValueError(
                 f"The retrieved record, {parsed_dcc_number}, is different from the "
                 f"requested one, {dcc_number}."
