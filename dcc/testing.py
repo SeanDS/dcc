@@ -1,6 +1,6 @@
 from functools import singledispatch
 from dataclasses import fields
-from .records import DCCNumber, DCCRecord
+from .records import DCCNumber, DCCAuthor, DCCRecord
 
 
 def assert_record_meta_matches(record_a, record_b):
@@ -27,6 +27,11 @@ def _(dcc_number):
     return hash((dcc_number.category, dcc_number.numeric, dcc_number.version))
 
 
+@hash_.register(DCCAuthor)
+def _(dcc_author):
+    return hash((dcc_author.name, dcc_author.uid))
+
+
 @hash_.register(DCCRecord)
 def _(dcc_record):
     return hash(
@@ -39,7 +44,7 @@ def _(dcc_record):
             dcc_record.note,
             dcc_record.publication_info,
             dcc_record.journal_reference,
-            tuple(hashall(dcc_record.other_versions or [])),
+            tuple(dcc_record.other_versions or []),
             dcc_record.creation_date,
             dcc_record.contents_revision_date,
             dcc_record.metadata_revision_date,
