@@ -1,14 +1,12 @@
-"""Test sessions."""
+"""Test DCC archive."""
 
-from dcc.records import DCCArchive, DCCRecord, DCCNumber
-from dcc.testing import assert_orderless_eq
+from dcc.records import DCCRecord, DCCNumber
+from dcc.testing import assert_orderless_eq, assert_record_meta_matches
 
 
-def test_documents(tmp_path):
+def test_documents(archive):
     """Test document listing."""
-    archive = DCCArchive(tmp_path)
-
-    assert not list(archive.documents)
+    assert_orderless_eq(archive.documents, [])
 
     # Add a record.
     archive.archive_revision_metadata(
@@ -24,13 +22,13 @@ def test_documents(tmp_path):
     assert_orderless_eq(archive.documents, twonumbers)
 
     # Add a non-archive file to the document directory. It should be ignored.
-    ignore_file = tmp_path / "ignore.txt"
+    ignore_file = archive.archive_dir / "ignore.txt"
     ignore_file.touch()
     assert ignore_file.is_file()
     assert_orderless_eq(archive.documents, twonumbers)
 
     # Add a non-archive directory to the document directory. It should be ignored.
-    ignore_dir = tmp_path / "ignore-dir"
+    ignore_dir = archive.archive_dir / "ignore-dir"
     ignore_dir.mkdir()
     assert ignore_dir.is_dir()
     assert_orderless_eq(archive.documents, twonumbers)
@@ -43,11 +41,9 @@ def test_documents(tmp_path):
     assert_orderless_eq(archive.documents, twonumbers)
 
 
-def test_records(tmp_path):
+def test_records(archive):
     """Test record listing."""
-    archive = DCCArchive(tmp_path)
-
-    assert not list(archive.records)
+    assert_orderless_eq(archive.records, [])
 
     # Add a record.
     record1 = DCCRecord(dcc_number="M1234567-v2", title="A title.")
@@ -76,3 +72,73 @@ def test_records(tmp_path):
     record3 = DCCRecord(dcc_number="T7654321-v4", title="A title.")
     archive.archive_revision_metadata(record3)
     assert_orderless_eq(archive.records, [record1, record2, record3])
+
+
+def test_fetch_record(requests_mock, mock_session, xml_response, ref_record, archive):
+    """Test fetching of a DCC record not in the current archive."""
+    dcc_number = DCCNumber("T1234567")
+    xml = xml_response(dcc_number)
+    reference = ref_record(dcc_number)
+
+    assert_orderless_eq(archive.records, [])
+
+    with mock_session() as session:
+        url = session.dcc_record_url(dcc_number)
+        requests_mock.get(url, text=xml)
+        assert_record_meta_matches(
+            archive.fetch_record(dcc_number, session=session), reference
+        )
+
+    assert_orderless_eq(archive.records, [reference])
+
+
+def test_fetch_existing_record__no_version(
+    requests_mock, mock_session, xml_response, ref_record, archive
+):
+    """Test fetching of a record already in the archive using a versionless DCC number.
+
+    As no version is specified in the DCC number, a connection is made to the remote DCC
+    to get the latest record. The retrieved record should be identical to the existing
+    one, so it is not overwritten.
+    """
+    dcc_number = DCCNumber("T1234567")
+    xml = xml_response(dcc_number)
+    reference = ref_record(dcc_number)
+
+    assert_orderless_eq(archive.records, [])
+    archive.archive_revision_metadata(reference)
+    assert_orderless_eq(archive.records, [reference])
+
+    with mock_session() as session:
+        url = session.dcc_record_url(dcc_number)
+        requests_mock.get(url, text=xml)
+        assert_record_meta_matches(
+            archive.fetch_record(dcc_number, ignore_version=False, session=session),
+            reference,
+        )
+
+    assert_orderless_eq(archive.records, [reference])
+
+
+def test_fetch_existing_record__no_version__ignore_version(
+    mock_session, ref_record, archive
+):
+    """Test fetching of a record already in the archive using a versionless DCC number,
+    when version is set to be ignored.
+
+    No connection to the remote DCC should be made.
+    """
+    dcc_number = DCCNumber("T1234567")
+    reference = ref_record(dcc_number)
+
+    assert_orderless_eq(archive.records, [])
+    archive.archive_revision_metadata(reference)
+    assert_orderless_eq(archive.records, [reference])
+
+    with mock_session() as session:
+        assert_record_meta_matches(
+            archive.fetch_record(dcc_number, ignore_version=True, session=session),
+            reference,
+        )
+
+    assert_orderless_eq(archive.records, [reference])

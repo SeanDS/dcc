@@ -1,7 +1,7 @@
 from functools import partial
 from pathlib import Path
 import pytest
-from dcc.records import DCCNumber, DCCRecord
+from dcc.records import DCCArchive, DCCNumber, DCCRecord
 from dcc.sessions import DCCUnauthenticatedSession
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -30,6 +30,11 @@ def ref_record():
         return DCCRecord.read(path)
 
     return _
+
+
+@pytest.fixture
+def archive(tmp_path):
+    return DCCArchive(tmp_path)
 
 
 @pytest.fixture
