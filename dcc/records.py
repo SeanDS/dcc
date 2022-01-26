@@ -19,6 +19,17 @@ from .exceptions import NoVersionError, FileTooLargeError
 LOGGER = logging.getLogger(__name__)
 
 
+def default_session():
+    """Create a DCC session using the default host and identity provider.
+
+    Returns
+    -------
+    :class:`.DCCAuthenticatedSession`
+        The default session.
+    """
+    return DCCAuthenticatedSession(host=DEFAULT_HOST, idp=DEFAULT_IDP)
+
+
 def ensure_session(func):
     """Ensure the `session` argument passed to the wrapped function is real, creating a
     temporary session if required."""
@@ -27,7 +38,7 @@ def ensure_session(func):
     def wrapped(*args, session=None, **kwargs):
         if session is None:
             LOGGER.debug(f"Using default session for called {func}.")
-            with DCCAuthenticatedSession(DEFAULT_HOST, DEFAULT_IDP) as session:
+            with default_session() as session:
                 return func(*args, session=session, **kwargs)
 
         return func(*args, session=session, **kwargs)
