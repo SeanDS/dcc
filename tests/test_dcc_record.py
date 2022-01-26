@@ -1,4 +1,4 @@
-"""Test sessions."""
+"""Test DCC records."""
 
 from datetime import datetime
 import pytest

@@ -1,4 +1,4 @@
-"""Test sessions."""
+"""Test DCC numbers."""
 
 import pytest
 from dcc.records import DCCNumber
