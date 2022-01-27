@@ -2,7 +2,7 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
-## 0.7.5 (hotfix)
+## 0.7.6 (hotfix)
 - Developer tools:
   - Fixed PyPI deployment on CI
 

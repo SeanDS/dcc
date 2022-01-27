@@ -104,13 +104,11 @@ docs/html:
 # Deploy stage #
 ################
 
-# Publish the documentation only for tagged releases, and only when tests pass.
+# Publish the documentation only for tagged releases.
 pages:
   stage: deploy
   needs:
     - docs/html
-    - test/py38
-    - test/py310
   only:
     - tags@sean-leavey/dcc
     - /^dcc-\d(.\d){2}$/
@@ -120,14 +118,12 @@ pages:
     paths:
       - public
 
-# Publish PyPI release only for tagged releases, and only when tests pass.
+# Publish PyPI release only for tagged releases.
 pypi:
   stage: deploy
   image: python:3.8
   needs:
-    - docs/html
-    - test/py38
-    - test/py310
+    - build/any
   only:
     - tags@sean-leavey/dcc
     - /^dcc-\d(.\d){2}$/
