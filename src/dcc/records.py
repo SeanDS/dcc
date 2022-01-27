@@ -1052,14 +1052,7 @@ class DCCRecord:
             The latest version number.
         """
 
-        # find highest other version
-        max_other_version = max(self.other_versions)
-
-        # check if this is greater than the current version
-        if max_other_version > self.dcc_number.version:
-            return max_other_version
-
-        return self.dcc_number.version
+        return max([self.dcc_number.version, *self.other_versions])
 
     def is_latest_version(self):
         """Check if the current record is the latest version.
