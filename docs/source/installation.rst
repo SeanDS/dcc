@@ -15,8 +15,8 @@ choose to manage system dependencies yourself, ensure you have the relevant Kerb
 packages above (provided on Linux by e.g. ``krb5-user`` on Debian derivatives or
 ``krb5-workstation`` on Red Hat derivatives).
 
-``dcc`` can be installed using ``pip`` or your favourite Python package manager using
-e.g.:
+``dcc`` can be installed from `PyPI <https://pypi.org/project/dcc/>`__ using ``pip`` or
+your favourite Python package manager using e.g.:
 
 .. code-block:: text
 
