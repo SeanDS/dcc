@@ -79,29 +79,45 @@ Record archival
 
 DCC records can be archived locally using :program:`dcc archive`. This downloads
 records' metadata, and optionally attached files, and stores them in the :ref:`local
-archive <local_archive>` for later retrieval. The command requires an input file
-containing the DCC numbers to archive, separated by whitespace. For example:
+archive <local_archive>` for later retrieval. The command requires one or more
+:option:`NUMBER <dcc archive NUMBER>` arguments and/or a :option:`--from-file <dcc
+archive --from-file>` option followed by a path to a file containing the DCC numbers
+(separated by whitespace) to archive. For example:
 
 .. code-block:: text
 
     # Archive the latest version of T010075:
-    $ echo "T010075" > to-archive.txt
-    $ dcc archive -s /path/to/archive to-archive.txt
+    $ dcc archive -s /path/to/archive T010075
 
     # Archive a specific version of T010075:
-    $ echo "T010075-v1" > to-archive.txt
-    $ dcc archive -s /path/to/archive to-archive.txt
+    $ dcc archive -s /path/to/archive T010075-v1
 
-The input can also be set to ``stdin`` by specifying ``-``:
+    # Archive multiple records:
+    $ dcc archive -s /path/to/archive T010075 E1300945
+
+    # Alternatively specify the path to a file containing the records to archive:
+    $ echo "T010075 E1300945" > to-archive.txt
+    $ dcc archive -s /path/to/archive --from-file to-archive.txt
+
+Similar to the behaviour of standard Unix utilities, the :option:`--from-file <dcc
+archive --from-file>` option can also be set to ``stdin`` by specifying ``-``:
 
 .. code-block:: text
 
-    $ echo "T010075" | dcc archive -s /path/to/archive -
+    $ echo "T010075 E1300945" | dcc archive -s /path/to/archive --from-file -
 
 Files are not automatically archived. To fetch them too, specify the :option:`--files
 <dcc --files>` flag. By default, files of any size will be retrieved. To limit the
 maximum size of files retrieved, specify the :option:`--max-file-size <dcc
 --max-file-size>` option, specifying a maximum file size in MB.
+
+Interactive mode
+~~~~~~~~~~~~~~~~
+
+Specifying :option:`-i <dcc archive -i>` or :option:`--interactive <dcc archive
+--interactive>` will prompt you for confirmation before downloading each record's files,
+giving you the opportunity to skip unnecessary files. This flag implies :option:`--files
+<dcc archive --files>`.
 
 Scraping a URL for links to DCC records
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -121,7 +137,7 @@ scrape a URL for DCC numbers and archive them locally. For example:
 
     # Fetch the "System Engineering" topic page, then extract and archive its DCC
     # numbers.
-    $ dcc convert https://dcc.ligo.org/cgi-bin/private/DocDB/ListBy?topicid=18 - | dcc archive -s /path/to/archive -
+    $ dcc convert https://dcc.ligo.org/cgi-bin/private/DocDB/ListBy?topicid=18 - | dcc archive -s /path/to/archive --from-file -
 
 Archival of referenced and referencing records
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -148,16 +164,16 @@ to" and "referenced by" records can be switched on and off using
     --depth>` is likely to lead to thousands of records being downloaded. Typically only
     a value of 1 or 2 is sufficient to archive almost every relevant related record.
 
-For example, the referenced documents of ``T010075`` can be archived alongside
-``T010075`` itself using:
+For example, the referenced documents of ``E1300945`` can be archived alongside
+``E1300945`` itself using:
 
 .. code-block:: text
 
-    # Fetch "related to" documents as well as T010075 itself:
-    $ echo "T010075" | dcc archive -s /path/to/archive --depth 1 -
+    # Fetch "related to" documents as well as E1300945 itself:
+    $ dcc archive -s /path/to/archive E1300945 --depth 1
 
     # Fetch "referenced by" documents as well:
-    $ echo "T010075" | dcc archive -s /path/to/archive --depth 1 --fetch-referencing -
+    $ dcc archive -s /path/to/archive E1300945 --depth 1 --fetch-referencing
 
 .. _updating_record_metadata:
 
@@ -174,17 +190,22 @@ Record metadata can be updated via ``dcc`` using :program:`dcc update`. This acc
 The :option:`--keyword <dcc update --keyword>`, :option:`--related <dcc update
 --related>`, and :option:`--author <dcc update --author>` options can be specified
 multiple times to set multiple values. Author names should be as written, e.g. "Albert
-Einstein", and should correspond to real DCC users.
+Einstein", and should correspond to real DCC users. For example:
+
+.. code-block:: text
+
+    # Update the title of T2200016.
+    $ dcc update T2200016 --title "A new title"
+
+By default, :program:`dcc update` will prompt for confirmation before sending the
+updated record to the DCC. To make changes without any confirmation, specify the flag
+:option:`--no-confirm <dcc update --no-confirm>`. Submitted changes are irreversible, so
+be careful.
 
 .. note::
 
     The DCC does not appear to perform error checking on author names. If an author is
     not given correctly, it is simply discarded.
-
-A dry run can be performed, meaning nothing actually gets updated on the remote DCC
-host, by specifying the :option:`-n <dcc -n>` or :option:`--dry-run <dcc --dry-run>`
-flag. Used in combination with :option:`-v <dcc -v>`, this can give you an idea of the
-changes that will be made to the record without actually making them.
 
 .. _changing_host:
 

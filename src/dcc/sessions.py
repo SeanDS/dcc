@@ -4,9 +4,28 @@ import abc
 import logging
 from requests import Session
 from ciecplib import Session as CIECPSession
-from .exceptions import FileTooLargeError, DryRun
+from .env import DEFAULT_HOST, DEFAULT_IDP
 
 LOGGER = logging.getLogger(__name__)
+
+
+def default_session(authenticated=False):
+    """Create a DCC session using the default host and identity provider.
+
+    Parameters
+    ----------
+    authenticated : :class:`bool`, optional
+        Whether to make the session an authenticated one. Defaults to False.
+
+    Returns
+    -------
+    :class:`.DCCAuthenticatedSession`
+        The default session.
+    """
+    if authenticated:
+        return DCCAuthenticatedSession(host=DEFAULT_HOST, idp=DEFAULT_IDP)
+    else:
+        return DCCUnauthenticatedSession(host=DEFAULT_HOST)
 
 
 class DCCSession(metaclass=abc.ABCMeta):
@@ -17,48 +36,35 @@ class DCCSession(metaclass=abc.ABCMeta):
     host : str
         The DCC host to use.
 
-    max_file_size : int, optional
-        Maximum file size to download, in bytes. Defaults to None, which means no limit.
-
-    simulate : bool, optional
-        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
-        exception.
-
-    download_progress_hook : iterable, optional
-        Function taking object, iterable (the streamed download chunks) and total length
-        arguments, yielding each provided chunk. This can be used to display a progress
-        bar. Note: the hook is only called if the response provides a Content-Length
-        header.
+    stream_hook : callable, optional
+        Function taking a stream type, the item being streamed, and a
+        :class:`requests.Response` object from a streamed GET or POST request, yielding
+        its body content. This can be used to implement download progress bars,
+        interactive skipping of downloads, etc.
     """
 
     # Transport protocol.
     protocol = "https"
 
+    # Stream types.
+    STREAM_FILE = 1
+
     def __init__(
         self,
         host,
         *,
-        max_file_size=None,
-        simulate=False,
-        download_progress_hook=None,
+        stream_hook=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
+        if stream_hook is None:
+
+            def stream_hook(_a, _b, response):
+                yield from response
+
         self.host = host
-        self.max_file_size = max_file_size
-        self.simulate = simulate
-        self.download_progress_hook = download_progress_hook
-
-    def post(self, *args, **kwargs):
-        if self.simulate:
-            LOGGER.info(
-                "Simulation enabled; skipping update (view debug logs for intended "
-                "request)."
-            )
-            raise DryRun()
-
-        return super().post(*args, **kwargs)
+        self.stream_hook = stream_hook
 
     def fetch_record_page(self, dcc_number):
         """Fetch a DCC record page.
@@ -87,27 +93,16 @@ class DCCSession(metaclass=abc.ABCMeta):
         dcc_file : :class:`.DCCFile`
             The DCC file to fetch.
 
-        Returns
-        -------
-        :class:`requests.Response`
-            The HTTP response.
+        Yields
+        ------
+        :class:`bytes`
+            The next chunk of the file.
         """
         url = dcc_file.url
         LOGGER.debug(f"GET file at {url}")
         response = self.get(url, stream=True)
         response.raise_for_status()
-        content_length = response.headers.get("content-length")
-
-        if content_length:
-            content_length = int(content_length)
-            LOGGER.debug(f"Content length: {content_length}")
-            if self.max_file_size is not None and content_length > self.max_file_size:
-                raise FileTooLargeError(dcc_file, content_length, self.max_file_size)
-
-            if self.download_progress_hook is not None:
-                return self.download_progress_hook(dcc_file, response, content_length)
-
-        return response
+        return self.stream_hook(self.STREAM_FILE, dcc_file, response)
 
     def update_record_metadata(self, dcc_record):
         """Update metadata for the DCC record specified by the provided number.
@@ -223,18 +218,10 @@ class DCCAuthenticatedSession(DCCSession, CIECPSession):
 
     Other Parameters
     ----------------
-    max_file_size : int, optional
-        Maximum file size to download, in bytes. Defaults to None, which means no limit.
-
-    simulate : bool, optional
-        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
-        exception.
-
-    download_progress_hook : iterable, optional
-        Function taking object, iterable (the streamed download chunks) and total length
-        arguments, yielding each provided chunk. This can be used to display a progress
-        bar. Note: the hook is only called if the response provides a Content-Length
-        header.
+    stream_hook : callable, optional
+        Function taking a response type and a :class:`requests.Response` object from a
+        GET or POST request, yielding its body content. This can be used to implement
+        download progress bars, interactive skipping of downloads, etc.
     """
 
     def dcc_record_url(self, dcc_number, xml=True):
@@ -258,18 +245,10 @@ class DCCUnauthenticatedSession(DCCSession, Session):
 
     Other Parameters
     ----------------
-    max_file_size : int, optional
-        Maximum file size to download, in bytes. Defaults to None, which means no limit.
-
-    simulate : bool, optional
-        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
-        exception.
-
-    download_progress_hook : iterable, optional
-        Function taking object, iterable (the streamed download chunks) and total length
-        arguments, yielding each provided chunk. This can be used to display a progress
-        bar. Note: the hook is only called if the response provides a Content-Length
-        header.
+    stream_hook : callable, optional
+        Function taking a response type and a :class:`requests.Response` object from a
+        GET or POST request, yielding its body content. This can be used to implement
+        download progress bars, interactive skipping of downloads, etc.
     """
 
     def dcc_record_url(self, dcc_number, xml=True):

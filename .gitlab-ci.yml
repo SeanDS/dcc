@@ -109,6 +109,10 @@ pages:
   stage: deploy
   needs:
     - docs/html
+    # Ideally we'd have a "stage: test" here too, but this isn't possible yet; see
+    # https://gitlab.com/gitlab-org/gitlab/-/issues/220758
+    - test/py38
+    - test/py310
   only:
     - tags@sean-leavey/dcc
     - /^dcc-\d(.\d){2}$/
@@ -124,6 +128,10 @@ pypi:
   image: python:3.8
   needs:
     - build/any
+    # Ideally we'd have a "stage: test" here too, but this isn't possible yet; see
+    # https://gitlab.com/gitlab-org/gitlab/-/issues/220758
+    - test/py38
+    - test/py310
   only:
     - tags@sean-leavey/dcc
     - /^dcc-\d(.\d){2}$/

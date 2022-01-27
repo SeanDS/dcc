@@ -15,7 +15,7 @@ def xml_response():
         else:
             raise NotImplementedError
 
-        path = DATA_DIR / f"dcc-number-{identifier}-xml.dat"
+        path = DATA_DIR / f"dcc-number-{identifier}.xml"
         with path.open("r") as fobj:
             return fobj.read()
 
@@ -39,10 +39,9 @@ def archive(tmp_path):
 
 @pytest.fixture
 def mock_session():
+    class MockSession(DCCUnauthenticatedSession):
+        """A mock DCC session object."""
+
+        protocol = "mock"
+
     return partial(MockSession, host="dcc.example.org")
-
-
-class MockSession(DCCUnauthenticatedSession):
-    """A mock DCC session object."""
-
-    protocol = "mock"

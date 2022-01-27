@@ -33,12 +33,22 @@ class NoVersionError(Exception):
         super().__init__("The DCC number has no specified version.", *args, **kwargs)
 
 
-class FileTooLargeError(Exception):
+class FileSkippedException(Exception):
+    """Exception for when a file to be downloaded is skipped."""
+
+    def __init__(self, dcc_file, msg=None):
+        self.dcc_file = dcc_file
+
+        if msg is None:
+            msg = f"{self.dcc_file} skipped"
+
+        super().__init__(msg)
+
+
+class TooLargeFileSkippedException(FileSkippedException):
     """Exception for when a file to be downloaded is too large."""
 
     def __init__(self, dcc_file, size, allowed):
-        super().__init__(f"{dcc_file} size too large ({size} > {allowed} bytes)")
-
-
-class DryRun(Exception):
-    """A dry run has taken place."""
+        super().__init__(
+            dcc_file, f"{dcc_file} size too large ({size} > {allowed} bytes)"
+        )

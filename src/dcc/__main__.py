@@ -15,16 +15,16 @@ import click
 
 from . import __version__, PROGRAM, AUTHORS, PROJECT_URL
 from .records import DCCArchive, DCCNumber, DCCAuthor
-from .sessions import DCCAuthenticatedSession, DCCUnauthenticatedSession
+from .sessions import DCCSession, DCCAuthenticatedSession, DCCUnauthenticatedSession
 from .parsers import DCCParser
 from .env import DEFAULT_HOST, DEFAULT_IDP
-from .util import change_exc_msg
+from .util import change_exc_msg, human_file_size
 from .exceptions import (
     NotLoggedInError,
     UnrecognisedDCCRecordError,
     UnauthorisedError,
-    FileTooLargeError,
-    DryRun,
+    FileSkippedException,
+    TooLargeFileSkippedException,
 )
 
 
@@ -167,18 +167,6 @@ download_progress_option = click.option(
     help="Show progress bar.",
 )
 
-# Updating.
-dry_run_option = click.option(
-    "-n",
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    callback=partial(_set_state_flag, flag="dry_run"),
-    expose_value=False,
-    help="Perform a trial run with no changes made.",
-)
-
 # Verbosity.
 verbose_option = click.option(
     "-v",
@@ -308,8 +296,8 @@ def _archive_record(
                 number,
                 ignore_version=ignore_version,
                 overwrite=force,
-                fetch_files=files,
-                ignore_too_large=True,
+                # Don't fetch files yet.
+                fetch_files=False,
                 session=session,
             )
         except UnrecognisedDCCRecordError as err:
@@ -338,7 +326,19 @@ def _archive_record(
         result.archived += 1
 
         if files:
-            result.files_archived += len(record.files)
+            for index in range(len(record.files)):
+                try:
+                    archive.fetch_record_file(
+                        record,
+                        index + 1,
+                        ignore_too_large=True,  # Don't throw exception.
+                        overwrite=force,
+                        session=session,
+                    )
+                except FileSkippedException as err:
+                    state.echo_exception(err)
+                else:
+                    result.files_archived += 1
 
         if level > 0:
             if fetch_related:
@@ -357,6 +357,10 @@ def _archive_record(
 
     try:
         _do_fetch(dcc_number, level=depth)
+    except click.exceptions.Abort as err:
+        # Aborts during e.g. click.prompt() are not proper KeyboardInterrupts so we have
+        # to make them one.
+        raise KeyboardInterrupt() from err
     except Exception as err:
         change_exc_msg(err, f"Archival error: {err}")
         state.echo_exception(err)
@@ -371,7 +375,7 @@ class _State:
         self.dcc_host = DEFAULT_HOST
         self.idp_host = DEFAULT_IDP
         self.archive_dir = None
-        self.dry_run = None
+        self.interactive = None
         self.max_file_size = None
         self.show_progress = None
         self.public = None
@@ -380,17 +384,7 @@ class _State:
         self._verbosity = logging.WARNING
 
     def dcc_session(self):
-        progress = None
-        if self.show_progress:
-            # Only show progress when not being quiet.
-            if self.verbose:
-                progress = self._download_progress_hook
-
-        kwargs = dict(
-            max_file_size=self.max_file_size,
-            simulate=self.dry_run,
-            download_progress_hook=progress,
-        )
+        kwargs = dict(stream_hook=self._stream_hook)
 
         if self.public:
             self.echo_info("Creating unauthenticated DCC session.")
@@ -431,28 +425,62 @@ class _State:
         self.echo_debug(f"Using {archive_dir} as archive.")
         return DCCArchive(archive_dir)
 
-    def _download_progress_hook(self, thing, chunks, total_length):
+    def _stream_hook(self, response_type, item, response):
+        if response_type is not DCCSession.STREAM_FILE:
+            raise RuntimeError(f"Unrecognised response type {repr(response_type)}.")
+
+        # We're downloading a file.
+        content_length = response.headers.get("content-length")
+        if content_length:
+            content_length = int(content_length)
+            self.echo_debug(f"Content length: {content_length}")
+
+        if self.interactive:
+            if content_length:
+                # Show file size.
+                value, unit = human_file_size(content_length)
+                item_size = f" ({value:.2f} {unit})"
+            else:
+                item_size = ""
+
+            if item.exists():
+                prompt = f"{repr(str(item))} already archived. Re-download{item_size}?"
+            else:
+                prompt = f"Download {repr(str(item))}{item_size}?"
+
+            if not click.confirm(prompt):
+                raise FileSkippedException(item)
+
+        if content_length:
+            if not self.interactive:
+                if (
+                    self.max_file_size is not None
+                    and content_length > self.max_file_size
+                ):
+                    raise TooLargeFileSkippedException(
+                        item, content_length, self.max_file_size
+                    )
+
+            # Only show progress when not being quiet.
+            if self.show_progress and self.verbose:
+                response = self._download_progress_hook(item, response, content_length)
+        else:
+            self.echo_debug(
+                "Can't show progress or check file size: no Content-Length header."
+            )
+
+        yield from response
+
+    def _download_progress_hook(self, item, chunks, total_length):
         # Iterate over the chunks, yielding each chunk and updating the progress bar.
         with click.progressbar(length=total_length) as progressbar:
             display_length = ""
             if total_length:
                 # Convert to user friendly length.
-                if total_length >= 1024 * 1024 * 1024:
-                    value = total_length / (1024 * 1024 * 1024)
-                    unit = "GB"
-                elif total_length >= 1024 * 1024:
-                    value = total_length / (1024 * 1024)
-                    unit = "MB"
-                elif total_length >= 1024:
-                    value = total_length / 1024
-                    unit = "kB"
-                else:
-                    value = total_length
-                    unit = "B"
-
+                value, unit = human_file_size(total_length)
                 display_length = f" ({value:.2f} {unit})"
 
-            self.echo(f"Downloading {thing}{display_length}")
+            self.echo(f"Downloading {item}{display_length}")
             for chunk in chunks:
                 yield chunk
                 progressbar.update(len(chunk))
@@ -742,7 +770,7 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
         except (NotLoggedInError, UnauthorisedError) as err:
             change_exc_msg(err, f"You are not authorised to access {dcc_number}.")
             state.echo_exception(err, exit_=True)
-        except FileTooLargeError as err:
+        except FileSkippedException as err:
             state.echo_exception(err, _exit=True)
 
         if state.archive_is_temporary:
@@ -766,11 +794,25 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
 
 
 @dcc.command()
-@click.argument("src", type=click.File("r"))
+@click.argument("number", type=DCC_NUMBER_TYPE, nargs=-1)
+@click.option(
+    "--from-file", type=click.File("r"), help="Archive records specified in file."
+)
 @depth_option
 @fetch_related_option
 @fetch_referencing_option
 @files_option
+@click.option(
+    "-i/--interactive",
+    is_flag=True,
+    default=False,
+    callback=partial(_set_state_flag, flag="interactive"),
+    expose_value=False,
+    help=(
+        "Enable interactive mode, which prompts for confirmation before downloading "
+        "files. This flag implies --files, and --max-file-size is ignored."
+    ),
+)
 @archive_dir_option
 @ignore_version_option
 @max_file_size_option
@@ -786,7 +828,8 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
 @click.pass_context
 def archive(
     ctx,
-    src,
+    number,
+    from_file,
     depth,
     fetch_related,
     fetch_referencing,
@@ -795,49 +838,54 @@ def archive(
     skip_category,
     force,
 ):
-    """Archive remote DCC records locally using DCC numbers listed in file.
+    """Archive remote DCC records locally.
 
-    Each DCC number in SRC should be a DCC record designation with optional version
-    such as 'D040105' or 'D040105-v1'.
+    Each specified NUMBER should be a DCC record designation with optional version such
+    as 'D040105' or 'D040105-v1'.
 
-    If a DCC number contains a version and is present in the local archive, it is used
-    unless --force is specified. If the DCC number does not contain a version, a version
-    exists in the local archive, and --ignore-version is specified, the latest local
-    version is used. In all other cases, the latest record is fetched from the remote
+    If a DCC number contains a version and is present in the local archive, it is
+    skipped unless --force is specified. If the DCC number does not contain a version, a
+    version exists in the local archive, and --ignore-version is specified, its archival
+    is skipped as well. In all other cases, the latest record is fetched from the remote
     host.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
+    numbers = list(number)
 
     with state.dcc_archive() as archive, state.dcc_session() as session:
+        if from_file:
+            # Extract numbers from input file.
+            while file_numbers := from_file.readline():
+                file_numbers = file_numbers.split()
+
+                for number in file_numbers:
+                    try:
+                        number = DCCNumber(number)
+                    except Exception as err:
+                        state.echo_exception(f"Error parsing {repr(number)}: {err}")
+                    else:
+                        numbers.append(number)
+
+        # Archive the numbers.
         result = ArchiveResult()
-
         try:
-            while numbers := src.readline():
-                numbers = numbers.split()
-
-                for number in numbers:
-                    number = number.strip()
-
-                    if not number:
-                        # Skip invalid.
-                        continue
-
-                    result += _archive_record(
-                        state,
-                        archive,
-                        number,
-                        depth,
-                        fetch_related,
-                        fetch_referencing,
-                        files,
-                        ignore_version,
-                        skip_category,
-                        force,
-                        session,
-                    )
+            for number in numbers:
+                result += _archive_record(
+                    state,
+                    archive,
+                    number,
+                    depth,
+                    fetch_related,
+                    fetch_referencing,
+                    files,
+                    ignore_version,
+                    skip_category,
+                    force,
+                    session,
+                )
         finally:
             state.echo(result)
 
@@ -919,7 +967,13 @@ def convert(ctx, src, dst):
     multiple=True,
     help="An author (can be specified multiple times).",
 )
-@dry_run_option
+@click.option(
+    "--confirm/--no-confirm",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Prompt for confirmation before making changes.",
+)
 @archive_dir_option
 @force_option
 @dcc_host_option
@@ -928,7 +982,9 @@ def convert(ctx, src, dst):
 @quiet_option
 @debug_option
 @click.pass_context
-def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, force):
+def update(
+    ctx, dcc_number, title, abstract, keywords, note, related, authors, confirm, force
+):
     """Update remote DCC record metadata.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -959,6 +1015,11 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
         if authors:
             record.authors = [DCCAuthor(name) for name in authors]
 
+        state.echo_record(record, session)
+
+        if confirm and not click.confirm("Submit changes to DCC?"):
+            state.echo_error("Aborted!", exit_=True)
+
         try:
             record.update(session=session)
         except UnrecognisedDCCRecordError as err:
@@ -969,8 +1030,6 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
                 err, f"You are not authorised to modify {record.dcc_number}."
             )
             state.echo_exception(err, exit_=True)
-        except DryRun:
-            state.echo("-n/--dry-run specified; nothing modified.", exit_=True)
 
         # Save the document's changes locally. Set overwrite argument to ensure changes
         # are made.

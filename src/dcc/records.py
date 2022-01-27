@@ -10,24 +10,12 @@ from functools import total_ordering, wraps
 import datetime
 import tomli
 import tomli_w
-from .sessions import DCCAuthenticatedSession
+from .sessions import default_session
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file, remove_none
-from .env import DEFAULT_HOST, DEFAULT_IDP
-from .exceptions import NoVersionError, FileTooLargeError
+from .exceptions import NoVersionError, TooLargeFileSkippedException
 
 LOGGER = logging.getLogger(__name__)
-
-
-def default_session():
-    """Create a DCC session using the default host and identity provider.
-
-    Returns
-    -------
-    :class:`.DCCAuthenticatedSession`
-        The default session.
-    """
-    return DCCAuthenticatedSession(host=DEFAULT_HOST, idp=DEFAULT_IDP)
 
 
 def ensure_session(func):
@@ -96,6 +84,24 @@ class DCCArchive:
             path = self.document_dir(document)
             yield from self.revisions(path.name)
 
+    @property
+    def latest_revisions(self):
+        """Latest revisions of the documents in the local archive.
+
+        Yields
+        ------
+        :class:`.DCCRecord`
+            The latest revision of a document in the archive.
+        """
+        for document in self.documents:
+            path = self.document_dir(document)
+
+            try:
+                yield self.latest_revision(path.name)
+            except Exception:
+                # Not a valid DCC record.
+                pass
+
     @ensure_session
     def fetch_record(
         self,
@@ -127,8 +133,8 @@ class DCCArchive:
             Whether to also fetch the files attached to the record. Defaults to False.
 
         ignore_too_large : bool, optional
-            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
-            True, the file is simply ignored.
+            If False, when a file is too large, raise a
+            :class:`.TooLargeFileSkippedException`. If True, the file is simply ignored.
 
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
@@ -184,8 +190,10 @@ class DCCArchive:
             LOGGER.info(f"Fetching {dcc_number} from DCC")
             record = DCCRecord.fetch(dcc_number, session=session)
 
-            # Store/update record in the local archive.
-            self.archive_revision_metadata(record, overwrite=overwrite)
+        record.discover_files(self.revision_dir(record.dcc_number))
+
+        # Store/update record in the local archive.
+        self.archive_revision_metadata(record, overwrite=overwrite)
 
         if fetch_files:
             self.fetch_record_files(
@@ -210,8 +218,8 @@ class DCCArchive:
             The record to fetch files for.
 
         ignore_too_large : bool, optional
-            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
-            True, the file is simply ignored.
+            If False, when a file is too large, raise a
+            :class:`.TooLargeFileSkippedException`. If True, the file is simply ignored.
 
         overwrite : bool, optional
             Whether to overwrite existing local files with those fetched remotely.
@@ -234,7 +242,9 @@ class DCCArchive:
         )
 
     @ensure_session
-    def fetch_record_file(self, record, number, *, overwrite=False, session):
+    def fetch_record_file(
+        self, record, number, *, ignore_too_large=False, overwrite=False, session
+    ):
         """Fetch the file at position `number` in the specified DCC record. If the file
         does not exist in the local archive, it is fetched and archived from the DCC.
 
@@ -246,6 +256,10 @@ class DCCArchive:
         number : int
             The file number to fetch, as listed in the record metadata, starting from
             position 1.
+
+        ignore_too_large : bool, optional
+            If False, when a file is too large, raise a
+            :class:`.TooLargeFileSkippedException`. If True, the file is simply ignored.
 
         overwrite : bool, optional
             Whether to overwrite existing local files with those fetched remotely.
@@ -263,6 +277,7 @@ class DCCArchive:
         return record.fetch_file(
             number,
             self.revision_dir(record.dcc_number),
+            ignore_too_large=ignore_too_large,
             overwrite=overwrite,
             session=session,
         )
@@ -503,7 +518,10 @@ class DCCNumber:
         elif numeric is None:
             # Full number specified in the first argument. Check it's long enough.
             if len(category) < 2:
-                raise ValueError("Invalid DCC number; should be of the form 'T0123456'")
+                raise ValueError(
+                    f"Invalid DCC number {repr(category)}; should be of the form "
+                    f"'T0123456'"
+                )
 
             # Get rid of first "LIGO-" if present.
             if category.startswith("LIGO-"):
@@ -627,17 +645,24 @@ class DCCFile:
     url: str
     local_path: Path = field(init=False, default=None)
 
+    def __post_init__(self):
+        self.title = self.title.strip()
+        self.filename = self.filename.strip()
+
     def __str__(self):
-        return f"{repr(self.title)} ({self.filename})"
+        if self.title == self.filename:
+            return self.title
+
+        return f"{self.title} ({self.filename})"
 
     @ensure_session
-    def fetch(self, file_path, *, overwrite=False, session):
+    def fetch(self, directory, *, overwrite=False, session):
         """Fetch the remote file and store in the local archive.
 
         Parameters
         ----------
-        file_path : str or :class:`pathlib.Path`
-            The path to use to store the file.
+        directory : str or :class:`pathlib.Path`
+            The directory to use to store the file.
 
         overwrite : bool, optional
             Whether to overwrite any existing file in the archive with that fetched
@@ -647,7 +672,7 @@ class DCCFile:
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
         """
-        file_path = Path(file_path)
+        file_path = Path(directory / self.filename)
 
         if not overwrite and file_path.exists():
             # The file is available in the local archive.
@@ -676,7 +701,8 @@ class DCCFile:
             LOGGER.info(f"Saving {self} to {file_path}")
             # NOTE: remove str() for Python >= 3.9.
             shutil.move(str(file_path_tmp), str(file_path))  # Atomic when dirs match.
-            self.local_path = file_path
+
+        self.discover(directory)
 
     def write(self, path):
         """Write file to the file system.
@@ -689,14 +715,37 @@ class DCCFile:
             opened, written to, then closed.
         """
         if self.local_path is None:
-            raise FileNotFoundError(
-                f"Local copy of {self} not found (run "
-                f"{self.__class__.__name__}.fetch())."
-            )
+            raise FileNotFoundError(f"No known local copy of {self}.")
 
         # Copy, allowing for open file objects.
         with opened_file(self.local_path, "rb") as src, opened_file(path, "wb") as dst:
             shutil.copyfileobj(src, dst)
+
+    def discover(self, directory):
+        """Update local file path if the local file exists in `directory`.
+
+        Parameters
+        ----------
+        directory : :class:`str` or :class:`pathlib.Path`
+            The directory to search.
+        """
+        path = Path(directory / self.filename)
+        if path.is_file():
+            LOGGER.debug(f"Discovered {self} local file at {path}.")
+            self.local_path = path
+
+    def exists(self):
+        """Whether the file exists at the local path.
+
+        Returns
+        -------
+        :class:`bool`
+            True if the file exists at the local path, False otherwise.
+        """
+        if self.local_path is None:
+            return False
+
+        return self.local_path.is_file()
 
 
 @dataclass
@@ -835,6 +884,17 @@ class DCCRecord:
             related_to=[DCCNumber(ref) for ref in parsed.related_ids],
         )
 
+    def discover_files(self, directory):
+        """Discover existing files in `directory` corresponding to this record.
+
+        Parameters
+        ----------
+        directory : :class:`str` or :class:`pathlib.Path`
+            The directory to search.
+        """
+        for file_ in self.files:
+            file_.discover(directory)
+
     @ensure_session
     def fetch_files(
         self, directory, *, ignore_too_large=False, overwrite=False, session
@@ -847,8 +907,8 @@ class DCCRecord:
             The directory in which to store the fetched files.
 
         ignore_too_large : bool, optional
-            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
-            True, the file is simply ignored.
+            If False, when a file is too large, raise a
+            :class:`.TooLargeFileSkippedException`. If True, the file is simply ignored.
 
         overwrite : bool, optional
             Whether to overwrite existing local files with those fetched remotely.
@@ -864,24 +924,23 @@ class DCCRecord:
             The fetched :class:`files <.DCCFile>`.
         """
         files = []
-        for number in range(1, len(self.files) + 1):
-            try:
-                file_ = self.fetch_file(
-                    number, directory, overwrite=overwrite, session=session
+        for index in range(len(self.files)):
+            files.append(
+                self.fetch_file(
+                    index + 1,
+                    directory,
+                    ignore_too_large=ignore_too_large,
+                    overwrite=overwrite,
+                    session=session,
                 )
-            except FileTooLargeError as err:
-                if ignore_too_large:
-                    # Just skip the file, don't raise the error.
-                    LOGGER.debug(f"{err}; skipping")
-                else:
-                    raise
-            else:
-                files.append(file_)
+            )
 
         return files
 
     @ensure_session
-    def fetch_file(self, number, directory, *, overwrite=False, session):
+    def fetch_file(
+        self, number, directory, *, ignore_too_large=False, overwrite=False, session
+    ):
         """Fetch file attached to this record.
 
         Parameters
@@ -891,6 +950,10 @@ class DCCRecord:
 
         directory : str or :class:`pathlib.Path`
             The directory in which to store the fetched file.
+
+        ignore_too_large : bool, optional
+            If False, when a file is too large, raise a
+            :class:`.TooLargeFileSkippedException`. If True, the file is simply ignored.
 
         overwrite : bool, optional
             Whether to overwrite the existing local file with that fetched remotely.
@@ -906,9 +969,17 @@ class DCCRecord:
             The fetched file.
         """
         file_ = self.files[number - 1]
-        path = Path(directory) / file_.filename
         LOGGER.debug(f"Fetching {file_} contents.")
-        file_.fetch(path, overwrite=overwrite, session=session)
+
+        try:
+            file_.fetch(directory, overwrite=overwrite, session=session)
+        except TooLargeFileSkippedException as err:
+            if ignore_too_large:
+                # Just skip the file, don't raise the error.
+                LOGGER.debug(f"{err}; skipping")
+            else:
+                raise
+
         return file_
 
     @ensure_session
@@ -1021,14 +1092,11 @@ class DCCRecord:
 
         Returns
         -------
-        :class:`list`
+        :class:`set`
             The versions.
         """
 
-        versions = set(self.other_versions)
-        versions.add(self.dcc_number.version)
-
-        return versions
+        return set([self.dcc_number.version, *self.other_versions])
 
     @property
     def filenames(self):
@@ -1052,14 +1120,7 @@ class DCCRecord:
             The latest version number.
         """
 
-        # find highest other version
-        max_other_version = max(self.other_versions)
-
-        # check if this is greater than the current version
-        if max_other_version > self.dcc_number.version:
-            return max_other_version
-
-        return self.dcc_number.version
+        return max(self.version_numbers)
 
     def is_latest_version(self):
         """Check if the current record is the latest version.

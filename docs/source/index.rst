@@ -45,7 +45,7 @@ Archive a record and its files locally:
 
 .. code-block:: text
 
-    $ echo "T010075" | dcc archive -s /path/to/archive --files -
+    $ dcc archive -s /path/to/archive T010075 --files
     $ tree /path/to/archive
     /path/to/archive
     └── T010075

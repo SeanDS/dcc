@@ -86,3 +86,35 @@ def opened_file(fobj, mode):
     finally:
         if close:
             fobj.close()
+
+
+def human_file_size(length):
+    """Convert length in bytes to a human file size.
+
+    Parameters
+    ----------
+    length : :class:`int`
+        The file size in bytes.
+
+    Returns
+    -------
+    :class:`int`
+        The scaled file size.
+
+    :class:`str`
+        The unit, e.g. "B" (bytes) or "GB" (gigabytes).
+    """
+    if length >= 1024 * 1024 * 1024:
+        value = length / (1024 * 1024 * 1024)
+        unit = "GB"
+    elif length >= 1024 * 1024:
+        value = length / (1024 * 1024)
+        unit = "MB"
+    elif length >= 1024:
+        value = length / 1024
+        unit = "kB"
+    else:
+        value = length
+        unit = "B"
+
+    return value, unit

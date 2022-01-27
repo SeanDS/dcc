@@ -2,6 +2,29 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
+## 0.8.0
+- CLI:
+  - Changed `dcc update` `--dry-run` flag to `--confirm/--no-confirm`; now it shows
+    the changes and prompts for confirmation
+  - Added interactive mode to `dcc archive` command, which prompts before downloading
+    files
+  - Changed `dcc archive` arguments to accept DCC numbers by default, instead allowing
+    loading of numbers from file using `--from-file`
+- Package:
+  - Made remote file stream handling (for progress bars, too large files, etc.) more
+    generic, allowing for greater flexibility over downloads
+  - Added `DCCFile.exists` method
+  - Titles and filename strings are now sanitised upon `DCCFile` instantiation
+  - Added `DCCArchive.latest_revisions` method
+  - Moved default session function to `dcc.sessions`
+  - Exposed some imports on the package scope
+- Developer tools:
+  - Added archive tests
+  - Renamed test data files
+- Documentation:
+  - Added link to PyPI project on installation page
+  - Updated release procedure
+
 ## 0.7.6 (hotfix)
 - Developer tools:
   - Fixed PyPI deployment on CI

@@ -10,4 +10,23 @@ try:
 except ImportError:
     raise FileNotFoundError("Could not find version.py. Ensure you have run setup.")
 
-__all__ = ("PROGRAM", "AUTHORS", "PROJECT_URL", "__version__")
+# Import some modules into the package namespace.
+from .records import DCCArchive, DCCNumber, DCCRecord
+from .sessions import (
+    default_session,
+    DCCAuthenticatedSession,
+    DCCUnauthenticatedSession,
+)
+
+__all__ = (
+    "PROGRAM",
+    "AUTHORS",
+    "PROJECT_URL",
+    "__version__",
+    "DCCArchive",
+    "DCCNumber",
+    "DCCRecord",
+    "default_session",
+    "DCCAuthenticatedSession",
+    "DCCUnauthenticatedSession",
+)

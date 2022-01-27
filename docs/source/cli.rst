@@ -77,10 +77,6 @@ Options require a value of some sort, whereas flags don't.
     Show or hide a download progress bar. For small files the progress bar may not be
     shown. By default this is enabled.
 
-.. option:: -n, --dry-run
-
-    Perform a trial run of a potentially destructive operation, making no real changes.
-
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -116,20 +112,24 @@ Options require a value of some sort, whereas flags don't.
 
 .. program:: dcc archive
 
-Archive remote DCC records locally using DCC numbers listed in file.
+Archive remote DCC records locally.
 
-Each DCC number in :option:`SRC <dcc archive SRC>` should be a DCC record designation
+Each specified :option:`NUMBER <dcc archive NUMBER>` should be a DCC record designation
 with optional version such as 'D040105' or 'D040105-v1'.
 
-If a DCC number contains a version and is present in the local archive, it is used
+If a DCC number contains a version and is present in the local archive, it is skipped
 unless :option:`--force <dcc archive --force>` is specified. If the DCC number does not
 contain a version, a version exists in the local archive, and :option:`--ignore-version
-<dcc archive --ignore-version>` is specified, the latest local version is used. In all
+<dcc archive --ignore-version>` is specified, its archival is skipped as well. In all
 other cases, the latest record is fetched from the remote host.
 
-.. option:: SRC
+.. option:: NUMBER
 
-    The number for the DCC record to archive.
+    A DCC number to archive (can be specified multiple times).
+
+.. option:: --from-file
+
+    Archive records specified in file.
 
 .. option:: --depth
 
@@ -146,6 +146,12 @@ other cases, the latest record is fetched from the remote host.
 .. option:: --files
 
     In addition to fetching the record, fetch its attached files too.
+
+.. option:: -i, --interactive
+
+    Enable interactive mode, which prompts for confirmation before downloading files.
+    This flag implies :option:`--files <dcc archive --files>`, and
+    :option:`--max-file-size <dcc archive --max-file-size>` is ignored.
 
 .. option:: -s, --archive-dir
 
@@ -466,9 +472,10 @@ metadata for that field.
 
     An author in the form "Albert Einstein" (can be specified multiple times).
 
-.. option:: -n, --dry-run
+.. option:: --confirm, --no-confirm
 
-    Perform a trial run of a the remote update, making no real changes.
+    Prompt (``--confirm``) or don't prompt (``--no-confirm``) for confirmation before
+    actually submitting the update to the remote DCC host.
 
 .. option:: -s, --archive-dir
 
