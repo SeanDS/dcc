@@ -118,9 +118,8 @@ Options require a value of some sort, whereas flags don't.
 
 Archive remote DCC records locally.
 
-Each DCC number in :option:`SRC <dcc archive SRC>` or :option:`--number <dcc archive
---number>` should be a DCC record designation with optional version such as 'D040105' or
-'D040105-v1'.
+Each specified :option:`NUMBER <dcc archive NUMBER>` should be a DCC record designation
+with optional version such as 'D040105' or 'D040105-v1'.
 
 If a DCC number contains a version and is present in the local archive, it is used
 unless :option:`--force <dcc archive --force>` is specified. If the DCC number does not
@@ -128,14 +127,13 @@ contain a version, a version exists in the local archive, and :option:`--ignore-
 <dcc archive --ignore-version>` is specified, the latest local version is used. In all
 other cases, the latest record is fetched from the remote host.
 
-.. option:: SRC
+.. option:: NUMBER
 
-    Path to a file containing DCC numbers to archive, separated by whitespace (can be
-    specified multiple times).
+    A DCC number to archive (can be specified multiple times).
 
-.. option:: --number
+.. option:: --from-file
 
-    Fetch record with specified number (can be specified multiple times).
+    Archive records specified in file.
 
 .. option:: --depth
 
@@ -152,6 +150,11 @@ other cases, the latest record is fetched from the remote host.
 .. option:: --files
 
     In addition to fetching the record, fetch its attached files too.
+
+.. option:: -i, --interactive
+
+    Enable interactive mode, which prompts for confirmation before downloading files.
+    This flag implies :option:`--files <dcc archive --files>`.
 
 .. option:: -s, --archive-dir
 

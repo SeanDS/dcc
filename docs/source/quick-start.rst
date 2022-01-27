@@ -32,7 +32,7 @@ file system. For example:
 .. code-block:: text
 
     # Use a directory called "dcc" in your home directory.
-    $ echo "T010075" | dcc archive -s ~/dcc --files -
+    $ dcc archive -s ~/dcc --files T010075
 
 If the archive directory is not given, ``dcc`` uses a temporary directory each time it
 is invoked, and the data is lost upon program exit.

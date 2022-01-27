@@ -309,8 +309,8 @@ def _archive_record(
                 number,
                 ignore_version=ignore_version,
                 overwrite=force,
-                fetch_files=files,
-                ignore_too_large=True,
+                # Don't fetch files yet.
+                fetch_files=False,
                 session=session,
             )
         except UnrecognisedDCCRecordError as err:
@@ -339,7 +339,19 @@ def _archive_record(
         result.archived += 1
 
         if files:
-            result.files_archived += len(record.files)
+            for index in range(len(record.files)):
+                try:
+                    archive.fetch_record_file(
+                        record,
+                        index + 1,
+                        ignore_too_large=True,  # Don't throw exception.
+                        overwrite=force,
+                        session=session,
+                    )
+                except FileSkippedException as err:
+                    state.echo_exception(err)
+                else:
+                    result.files_archived += 1
 
         if level > 0:
             if fetch_related:
@@ -358,6 +370,10 @@ def _archive_record(
 
     try:
         _do_fetch(dcc_number, level=depth)
+    except click.exceptions.Abort as err:
+        # Aborts during e.g. click.prompt() are not proper KeyboardInterrupts so we have
+        # to make them one.
+        raise KeyboardInterrupt() from err
     except Exception as err:
         change_exc_msg(err, f"Archival error: {err}")
         state.echo_exception(err)
@@ -372,6 +388,7 @@ class _State:
         self.dcc_host = DEFAULT_HOST
         self.idp_host = DEFAULT_IDP
         self.archive_dir = None
+        self.interactive = None
         self.dry_run = None
         self.max_file_size = None
         self.show_progress = None
@@ -432,11 +449,31 @@ class _State:
             content_length = int(content_length)
             self.echo_debug(f"Content length: {content_length}")
 
+        if self.interactive:
+            if content_length:
+                # Show file size.
+                value, unit = human_file_size(content_length)
+                item_size = f" ({value:.2f} {unit})"
+            else:
+                item_size = ""
+
+            if item.exists():
+                prompt = f"{repr(str(item))} already archived. Re-download{item_size}?"
+            else:
+                prompt = f"Download {repr(str(item))}{item_size}?"
+
+            if not click.confirm(prompt):
+                raise FileSkippedException(item)
+
         if content_length:
-            if self.max_file_size is not None and content_length > self.max_file_size:
-                raise TooLargeFileSkippedException(
-                    item, content_length, self.max_file_size
-                )
+            if not self.interactive:
+                if (
+                    self.max_file_size is not None
+                    and content_length > self.max_file_size
+                ):
+                    raise TooLargeFileSkippedException(
+                        item, content_length, self.max_file_size
+                    )
 
             # Only show progress when not being quiet.
             if self.show_progress and self.verbose:
@@ -771,17 +808,25 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
 
 
 @dcc.command()
-@click.argument("src", type=click.File("r"), nargs=-1)
+@click.argument("number", type=DCC_NUMBER_TYPE, nargs=-1)
 @click.option(
-    "--number",
-    type=DCC_NUMBER_TYPE,
-    multiple=True,
-    help="Fetch record with specified number (can be specified multiple times).",
+    "--from-file", type=click.File("r"), help="Archive records specified in file."
 )
 @depth_option
 @fetch_related_option
 @fetch_referencing_option
 @files_option
+@click.option(
+    "-i/--interactive",
+    is_flag=True,
+    default=False,
+    callback=partial(_set_state_flag, flag="interactive"),
+    expose_value=False,
+    help=(
+        "Enable interactive mode, which prompts for confirmation before downloading "
+        "files. This flag implies --files."
+    ),
+)
 @archive_dir_option
 @ignore_version_option
 @max_file_size_option
@@ -797,8 +842,8 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
 @click.pass_context
 def archive(
     ctx,
-    src,
     number,
+    from_file,
     depth,
     fetch_related,
     fetch_referencing,
@@ -809,8 +854,8 @@ def archive(
 ):
     """Archive remote DCC records locally.
 
-    Each DCC number in SRC or --number should be a DCC record designation with optional
-    version such as 'D040105' or 'D040105-v1'.
+    Each specified NUMBER should be a DCC record designation with optional version such
+    as 'D040105' or 'D040105-v1'.
 
     If a DCC number contains a version and is present in the local archive, it is used
     unless --force is specified. If the DCC number does not contain a version, a version
@@ -822,27 +867,21 @@ def archive(
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
-    extra_numbers = number
+    numbers = list(number)
 
     with state.dcc_archive() as archive, state.dcc_session() as session:
-        numbers = []
+        if from_file:
+            # Extract numbers from input file.
+            while file_numbers := from_file.readline():
+                file_numbers = file_numbers.split()
 
-        # Extract numbers from input file(s).
-        for srcfile in src:
-            while srcnumbers := srcfile.readline():
-                srcnumbers = srcnumbers.split()
-
-                for number in srcnumbers:
+                for number in file_numbers:
                     try:
                         number = DCCNumber(number)
                     except Exception as err:
                         state.echo_exception(f"Error parsing {repr(number)}: {err}")
                     else:
                         numbers.append(number)
-
-        # Add numbers specified as extra options.
-        for extra_number in extra_numbers:
-            numbers.append(extra_number)
 
         # Archive the numbers.
         result = ArchiveResult()
