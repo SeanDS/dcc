@@ -633,6 +633,10 @@ class DCCFile:
     url: str
     local_path: Path = field(init=False, default=None)
 
+    def __post_init__(self):
+        self.title = self.title.strip()
+        self.filename = self.filename.strip()
+
     def __str__(self):
         return f"{repr(self.title)} ({self.filename})"
 
@@ -703,6 +707,19 @@ class DCCFile:
         # Copy, allowing for open file objects.
         with opened_file(self.local_path, "rb") as src, opened_file(path, "wb") as dst:
             shutil.copyfileobj(src, dst)
+
+    def exists(self):
+        """Whether the file exists at the local path.
+
+        Returns
+        -------
+        :class:`bool`
+            True if the file exists at the local path, False otherwise.
+        """
+        if self.local_path is None:
+            return False
+
+        return self.local_path.is_file()
 
 
 @dataclass
