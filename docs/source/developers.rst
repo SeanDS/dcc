@@ -15,8 +15,8 @@ then install the package as editable, alongside the developer dependencies:
 
 .. code-block:: text
 
-     $ cd /path/to/cloned/dcc/repository
-     $ pip install -e .[dev]
+    $ cd /path/to/cloned/dcc/repository
+    $ pip install -e .[dev]
 
 The project uses `pre-commit <https://pre-commit.com/>`__ to perform checking and code
 formatting as part of the git commit process. To initialise this, run:
@@ -72,19 +72,22 @@ Creating a tagged release
 #. Check out the ``master`` branch again, and merge the release branch with ``git merge
    --no-ff release/X.Y.Z``.
 #. Delete the now fully-merged release branch with ``git branch -d release/X.Y.Z``.
-#. Push the branches and tags to the remote with ``git push develop``, ``git push
-   master`` and ``git push --tags``.
+#. Push the branches and tags to the remote with ``git push origin master develop
+   dcc-X.Y.Z``.
 
 Uploading to PyPI
 ~~~~~~~~~~~~~~~~~
+
+Deployment to PyPI is automatic for tagged branches pushed to the main repository at
+``sean-leavey/dcc``. The steps for manual deployment are listed below in case needed.
 
 The following instructions are based on
 https://packaging.python.org/en/latest/tutorials/packaging-projects/.
 
 .. note::
 
-    Uploading to `PyPI <https://pypi.org/>`__ requires an account that is a maintainer of
-    the `dcc project <https://pypi.org/project/dcc>`__ there.
+    Uploading to `PyPI <https://pypi.org/>`__ requires an account that is a maintainer
+    of the `dcc project <https://pypi.org/project/dcc>`__ there.
 
 #. Check out the tag for the package you wish to publish with ``git checkout
    dcc-X.Y.Z`` (``setuptools_scm`` used for versioning requires a tagged branch for a
