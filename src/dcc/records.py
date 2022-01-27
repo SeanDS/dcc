@@ -1021,14 +1021,11 @@ class DCCRecord:
 
         Returns
         -------
-        :class:`list`
+        :class:`set`
             The versions.
         """
 
-        versions = set(self.other_versions)
-        versions.add(self.dcc_number.version)
-
-        return versions
+        return set([self.dcc_number.version, *self.other_versions])
 
     @property
     def filenames(self):
@@ -1052,7 +1049,7 @@ class DCCRecord:
             The latest version number.
         """
 
-        return max([self.dcc_number.version, *self.other_versions])
+        return max(self.version_numbers)
 
     def is_latest_version(self):
         """Check if the current record is the latest version.
