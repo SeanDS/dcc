@@ -10,24 +10,12 @@ from functools import total_ordering, wraps
 import datetime
 import tomli
 import tomli_w
-from .sessions import DCCAuthenticatedSession
+from .sessions import default_session
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file, remove_none
-from .env import DEFAULT_HOST, DEFAULT_IDP
 from .exceptions import NoVersionError, FileTooLargeError
 
 LOGGER = logging.getLogger(__name__)
-
-
-def default_session():
-    """Create a DCC session using the default host and identity provider.
-
-    Returns
-    -------
-    :class:`.DCCAuthenticatedSession`
-        The default session.
-    """
-    return DCCAuthenticatedSession(host=DEFAULT_HOST, idp=DEFAULT_IDP)
 
 
 def ensure_session(func):

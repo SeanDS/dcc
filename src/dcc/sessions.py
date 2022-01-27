@@ -4,9 +4,29 @@ import abc
 import logging
 from requests import Session
 from ciecplib import Session as CIECPSession
+from .env import DEFAULT_HOST, DEFAULT_IDP
 from .exceptions import FileTooLargeError, DryRun
 
 LOGGER = logging.getLogger(__name__)
+
+
+def default_session(authenticated=False):
+    """Create a DCC session using the default host and identity provider.
+
+    Parameters
+    ----------
+    authenticated : :class:`bool`, optional
+        Whether to make the session an authenticated one. Defaults to False.
+
+    Returns
+    -------
+    :class:`.DCCAuthenticatedSession`
+        The default session.
+    """
+    if authenticated:
+        return DCCAuthenticatedSession(host=DEFAULT_HOST, idp=DEFAULT_IDP)
+    else:
+        return DCCUnauthenticatedSession(host=DEFAULT_HOST)
 
 
 class DCCSession(metaclass=abc.ABCMeta):
