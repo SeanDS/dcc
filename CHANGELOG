@@ -2,6 +2,37 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
+## 0.7.4
+- Package:
+  - Renamed `DCCNumber.string_repr` to `DCCNumber.format`
+  - Fixed bug with `DCCNumber` parsing
+  - Added `documents` property to `DCCArchive`
+  - Fixed bug with public sessions requiring IDP parameter (#21)
+  - Made file system writes (meta and attachment files) atomic
+  - Fixed various docstrings
+- CLI:
+  - Changed `dcc scrape`:
+    - Renamed to `dcc convert`
+    - Changed function to extract DCC numbers from arbitrary text documents (HTML or
+      otherwise)
+    - Changed to accept local paths as well as URLs
+    - Changed to output a file (or stdout)
+  - Changed behaviour of `dcc archive` to accept only a file (or stdin) containing DCC
+    numbers to archive
+  - Fixed bug with archive directory
+  - Changed `--prefer-local` flag to `--ignore-version`
+  - Added descriptions for R and X record types
+  - Fixed bug with `dcc open-file` when no `-s`/`--archive-dir` flag is given
+- Documentation:
+  - Changed documentation for changed CLI commands
+  - Added stdin pipe example
+  - Added examples page
+- Developer tools:
+  - Added tests
+  - Added test stage to CI
+  - Added functions to compare DCC numbers, authors, records, and sets of records
+  - Added automated PyPI deploy job for tagged releases
+
 ## 0.7.3 (hotfix)
 - Fixed bug loading archived TOML files
 

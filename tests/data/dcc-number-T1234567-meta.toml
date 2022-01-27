@@ -1,0 +1,21 @@
+__schema__ = "1"
+title = "This is the title."
+authors = [
+    { name = "John Doe", uid = "123" },
+    { name = "Jane Doe", uid = "321" },
+]
+abstract = "This is the abstract."
+keywords = []
+note = "This is the note."
+other_versions = [
+    1,
+]
+contents_revision_date = 2015-02-17 17:55:30-08:00
+files = []
+referenced_by = []
+related_to = []
+
+[dcc_number]
+category = "T"
+numeric = "1234567"
+version = 2

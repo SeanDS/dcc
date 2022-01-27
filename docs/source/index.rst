@@ -2,7 +2,8 @@ dcc
 ===
 
 ``dcc`` is a Python-based, primarily command line driven tool for interacting with the
-`LIGO DCC <https://dcc.ligo.org/>`__.
+`LIGO DCC <https://dcc.ligo.org/>`__ and similar document servers based on `DocDB
+<https://github.com/ericvaandering/DocDB/>`__.
 
 ``dcc`` attempts to provide a powerful yet intuitive and user-friendly command line
 interface to the DCC, allowing for quick and automated retrieval and update of records
@@ -12,9 +13,7 @@ Features
 --------
 
 - Interactive command line interface
-- Retrieval and modification of DCC record metadata
-- Extraction of attachment descriptions and URLs
-- Local archival of downloaded content
+- Retrieval, modification and archival of DCC record metadata and attachments
 - URL scraping and automatic, recursive archival of related documents and files
 
 Easy to install
@@ -46,7 +45,7 @@ Archive a record and its files locally:
 
 .. code-block:: text
 
-    $ dcc archive -s /path/to/archive --files T010075
+    $ echo "T010075" | dcc archive -s /path/to/archive --files -
     $ tree /path/to/archive
     /path/to/archive
     └── T010075
@@ -72,6 +71,7 @@ Full contents
     installation
     quick-start
     usage
+    examples
     cli
     developers
     api

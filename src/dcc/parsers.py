@@ -36,26 +36,32 @@ class DCCParser:
         """
         return BeautifulSoup(self.content, "html.parser")
 
-    def html_dcc_numbers(self):
+    def dcc_numbers(self):
         """Potential DCC numbers contained within the text of the document.
 
-        Yields
-        ------
-        str
-            A potential DCC number.
+        Returns
+        -------
+        :class:`set`
+            Potential DCC numbers.
         """
         from .records import DCCNumber
 
         available_letters = "".join(DCCNumber.document_type_letters)
         dcc_number_pattern = re.compile(
-            fr"^(LIGO-)?[{available_letters}]\d{{5,}}(-(x0|v\d+))?$"
+            fr"(LIGO-)?([{available_letters}]\d{{5,}}(-(x0|v\d+))?)"
         )
 
+        found = set()
+
+        # Search for DCC numbers in the text.
+        # Use the HTML navigator so BeautifulSoup deals with the encoding, even though
+        # we don't necessary insist the input is HTML.
         navigator = self.html_navigator()
-        for text in navigator.find_all(text=True):
-            for word in text.strip().split():
-                if dcc_number_pattern.match(word):
-                    yield word
+        for match in dcc_number_pattern.findall(str(navigator)):
+            if match:
+                found.add(match[1])
+
+        return found
 
 
 class DCCXMLRecordParser(DCCParser):

@@ -32,7 +32,7 @@ file system. For example:
 .. code-block:: text
 
     # Use a directory called "dcc" in your home directory.
-    $ dcc archive -s ~/dcc T010075 --files
+    $ echo "T010075" | dcc archive -s ~/dcc --files -
 
 If the archive directory is not given, ``dcc`` uses a temporary directory each time it
 is invoked, and the data is lost upon program exit.
@@ -43,42 +43,16 @@ Viewing a record
 Metadata for a record can be viewed on the console by specifying :program:`dcc view`
 followed by the :option:`DCC number <dcc DCC_NUMBER>`, e.g.:
 
-.. code-block:: text
-
-    $ dcc view T010075
-
-This will output something like…
-
-.. code-block:: text
-
-    number: T010075-v3
-    url: https://dcc.ligo.org/T010075-v3
-    title: Advanced LIGO Systems Design
-    authors: Peter Fritschel, Dennis Coyne
-    abstract:
-    This document describes the system design and requirements for the Advanced
-    LIGO detectors. Only systems-level scope is addressed. For a top-level overall
-    systems description, see P1400177. For Systems acceptance documentation see
-    E1400371.
-    note:
-    This version has been prepared for the Advanced LIGO Systems Acceptance Review
-    (Feb 2015). For changes from -v2 to -v3, see the change record file.
-    keywords:
-    files:
-    1. 'T010075-v3 aLIGO System Description.pdf' (T010075-v3 aLIGO System Description.pdf)
-    2. 'Change Record for T010075-v3.docx' (Change Record for T010075-v3.docx)
-    3. 'Change Record for T010075-v3.pdf' (Change Record for T010075-v3.pdf)
-    4. 'Zip file of source documents' (T010075-v3 System Description.zip)
-    referenced by: T050036, E1300945, E1300948
-    related to:
+.. command-output:: dcc view T010075 --public
 
 …which corresponds to what's on the `DCC page itself
-<https://dcc.ligo.org/T010075/public>`__.
+<https://dcc.ligo.org/T010075/public>`__. Note that the :option:`--public <dcc
+--public>` flag specifies to retrieve the record from the public DCC page.
 
 .. note::
 
-    Depending on your `ligo.org <https://my.ligo.org/>`__ account's level of privilege,
-    you may see more or less information than that shown above.
+    Depending on the level of privilege of your credentials, you may see more or less
+    information than that shown above.
 
 Downloading and opening a file
 ------------------------------

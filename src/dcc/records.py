@@ -7,17 +7,27 @@ import shutil
 from dataclasses import dataclass, field, asdict
 from itertools import takewhile
 from functools import total_ordering, wraps
-from tempfile import TemporaryFile
 import datetime
 import tomli
 import tomli_w
-from .sessions import DCCSession
+from .sessions import DCCAuthenticatedSession
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file, remove_none
 from .env import DEFAULT_HOST, DEFAULT_IDP
 from .exceptions import NoVersionError, FileTooLargeError
 
 LOGGER = logging.getLogger(__name__)
+
+
+def default_session():
+    """Create a DCC session using the default host and identity provider.
+
+    Returns
+    -------
+    :class:`.DCCAuthenticatedSession`
+        The default session.
+    """
+    return DCCAuthenticatedSession(host=DEFAULT_HOST, idp=DEFAULT_IDP)
 
 
 def ensure_session(func):
@@ -28,7 +38,7 @@ def ensure_session(func):
     def wrapped(*args, session=None, **kwargs):
         if session is None:
             LOGGER.debug(f"Using default session for called {func}.")
-            with DCCSession(DEFAULT_HOST, DEFAULT_IDP) as session:
+            with default_session() as session:
                 return func(*args, session=session, **kwargs)
 
         return func(*args, session=session, **kwargs)
@@ -51,26 +61,47 @@ class DCCArchive:
     def __init__(self, archive_dir):
         self.archive_dir = Path(archive_dir)
 
-    def records(self):
-        """Records in the local archive.
+    @property
+    def documents(self):
+        """The documents in the local archive.
+
+        These are DCC numbers corresponding to the documents in the local archive,
+        without version suffices.
 
         Yields
         ------
-        :class:`.DCCRecord`
-            The latest version of a record in the archive.
+        :class:`.DCCNumber`
+            A DCC number in the local archive.
         """
         for path in self.archive_dir.iterdir():
             if not path.is_dir():
                 continue
 
-            yield from self.document_records(path.name)
+            try:
+                yield DCCNumber(path.name)
+            except Exception:
+                # Not a valid DCC number.
+                pass
+
+    @property
+    def records(self):
+        """Records in the local archive, including revisions.
+
+        Yields
+        ------
+        :class:`.DCCRecord`
+            A record in the archive.
+        """
+        for document in self.documents:
+            path = self.document_dir(document)
+            yield from self.revisions(path.name)
 
     @ensure_session
     def fetch_record(
         self,
         dcc_number,
         *,
-        prefer_local_archive=False,
+        ignore_version=False,
         overwrite=False,
         fetch_files=False,
         ignore_too_large=False,
@@ -84,9 +115,9 @@ class DCCArchive:
         dcc_number : :class:`.DCCNumber` or str
             The DCC record to fetch.
 
-        prefer_local_archive : bool, optional
-            Whether to prefer the archive over fetching latest remote records. Defaults
-            to False.
+        ignore_version : bool, optional
+            Whether to ignore the version in `dcc_number` when deterimining if the
+            document exists in the archive already. Defaults to False.
 
         overwrite : bool, optional
             Whether to overwrite existing records and files in the archive with those
@@ -112,14 +143,14 @@ class DCCArchive:
                 f"No version specified in requested record {repr(str(dcc_number))}."
             )
 
-            if prefer_local_archive:
+            if ignore_version:
                 # Use the latest archived record, if found.
                 LOGGER.info(
                     "Searching for latest record in the local archive (disable by "
-                    "setting prefer_local_archive to False)."
+                    "setting ignore_version to False)."
                 )
                 try:
-                    record = self.latest_record(dcc_number)
+                    record = self.latest_revision(dcc_number)
                 except FileNotFoundError:
                     LOGGER.info("No locally archived record of any version exists.")
                 else:
@@ -128,12 +159,12 @@ class DCCArchive:
                 # We can't know for sure that the local archive contains the latest
                 # version, so we have to fetch the remote.
                 LOGGER.info(
-                    "Ignoring local archive (disable by setting "
-                    "DCCArchive.prefer_local_archive to True)."
+                    "No version specified; fetching latest record from DCC regardless "
+                    "of local archive (disable by setting ignore_version to True)."
                 )
         else:
             if not overwrite:
-                meta_file = self.record_meta_path(dcc_number)
+                meta_file = self.revision_meta_path(dcc_number)
 
                 if meta_file.exists():
                     # Retrieve the cached record.
@@ -154,7 +185,7 @@ class DCCArchive:
             record = DCCRecord.fetch(dcc_number, session=session)
 
             # Store/update record in the local archive.
-            self.archive_record_metadata(record, overwrite=overwrite)
+            self.archive_revision_metadata(record, overwrite=overwrite)
 
         if fetch_files:
             self.fetch_record_files(
@@ -170,8 +201,8 @@ class DCCArchive:
     def fetch_record_files(
         self, record, *, ignore_too_large=False, overwrite=False, session
     ):
-        """Fetch a DCC record, either from the local archive or from the remote DCC
-        host, adding it to the local archive if necessary.
+        """Fetch the files in the specified DCC record. If any file does not exist in
+        the local archive, it is fetched and archived from the DCC.
 
         Parameters
         ----------
@@ -196,7 +227,7 @@ class DCCArchive:
             The fetched :class:`files <.DCCFile>`.
         """
         return record.fetch_files(
-            self.record_dir(record.dcc_number),
+            self.revision_dir(record.dcc_number),
             ignore_too_large=ignore_too_large,
             overwrite=overwrite,
             session=session,
@@ -204,8 +235,8 @@ class DCCArchive:
 
     @ensure_session
     def fetch_record_file(self, record, number, *, overwrite=False, session):
-        """Fetch a DCC record, either from the local archive or from the remote DCC
-        host, adding it to the local archive if necessary.
+        """Fetch the file at position `number` in the specified DCC record. If the file
+        does not exist in the local archive, it is fetched and archived from the DCC.
 
         Parameters
         ----------
@@ -213,7 +244,8 @@ class DCCArchive:
             The record to fetch files for.
 
         number : int
-            The file number to fetch.
+            The file number to fetch, as listed in the record metadata, starting from
+            position 1.
 
         overwrite : bool, optional
             Whether to overwrite existing local files with those fetched remotely.
@@ -230,13 +262,13 @@ class DCCArchive:
         """
         return record.fetch_file(
             number,
-            self.record_dir(record.dcc_number),
+            self.revision_dir(record.dcc_number),
             overwrite=overwrite,
             session=session,
         )
 
-    def archive_record_metadata(self, record, *, overwrite=False):
-        """Serialise record metadata in the local archive.
+    def archive_revision_metadata(self, record, *, overwrite=False):
+        """Serialise revision metadata in the local archive.
 
         Parameters
         ----------
@@ -244,10 +276,10 @@ class DCCArchive:
             The record to archive.
 
         overwrite : bool, optional
-            Whether to overwrite any existing record in the local archive. Defaults to
-            False.
+            If True, overwrite any existing revision in the local archive; otherwise
+            do nothing. Defaults to False.
         """
-        meta_path = self.record_meta_path(record.dcc_number)
+        meta_path = self.revision_meta_path(record.dcc_number)
 
         if meta_path.is_file():
             if not overwrite:
@@ -259,59 +291,67 @@ class DCCArchive:
 
             LOGGER.info(f"Overwriting {meta_path}")
 
-        LOGGER.info(f"Archiving {record} metadata to {meta_path}")
+        LOGGER.info(f"Archiving {record} metadata to {meta_path}.")
         meta_path.parent.mkdir(parents=True, exist_ok=True)
-        record.write(meta_path)
 
-    def document_records(self, dcc_number):
-        """Load all DCC records for a given DCC number from the local archive.
+        # First write the metadata to a temporary file in the same directory, then move
+        # it to the final location, to ensure atomicity.
+        # Just create a new file directly (don't use `tempfile`) so that the new
+        # temporary file has the target directory's intended mode.
+        meta_path_tmp = meta_path.parent / f".{meta_path.name}-tmp"
+        record.write(meta_path_tmp)
+        # NOTE: remove str() for Python >= 3.9.
+        shutil.move(str(meta_path_tmp), str(meta_path))  # Atomic when dirs match.
+
+    def revisions(self, dcc_number):
+        """All revisions in the local archive corresponding to the specified DCC number.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber` or str
-            The DCC number to load records for (if present, the version is ignored).
+            The DCC number. If a version is specified, it is ignored.
 
         Returns
         -------
         :class:`list`
-            The :class:`records <.DCCRecord>` corresponding to `dcc_number` in the local
-            archive.
+            The :class:`records <.DCCRecord>` in the local archive corresponding to the
+            revisions of `dcc_number`.
         """
         dcc_number = DCCNumber(dcc_number)
         document_dir = self.document_dir(dcc_number)
 
-        records = []
+        revisions = []
 
         if document_dir.exists():
-            for path in document_dir.iterdir():
-                if not path.is_dir():
+            for revision_path in document_dir.iterdir():
+                if not revision_path.is_dir():
                     continue
 
-                # Parse the record if exists.
-                records.append(DCCRecord.read(self._meta_path(path)))
+                # Parse the revision if exists.
+                revisions.append(DCCRecord.read(self._meta_path(revision_path)))
 
-        return records
+        return revisions
 
-    def latest_record(self, dcc_number):
-        """Load the latest DCC record from the local archive.
+    def latest_revision(self, dcc_number):
+        """The latest revision in the local archive of the document corresponding to the
+        specified DCC number.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber` or str
-            The DCC number to load the latest record for (if present, the version is
-            ignored).
+            The DCC number. If a version is specified, it is ignored.
 
         Returns
         -------
         :class:`.DCCRecord`
-            The latest record corresponding to `dcc_number` in the local archive.
+            The latest revision in the local archive of `dcc_number`.
 
         Raises
         ------
         :class:`FileNotFoundError`
-            If no records matching `dcc_number` exist in the local archive.
+            If no revisions of `dcc_number` exist in the local archive.
         """
-        records = self.document_records(dcc_number)
+        records = self.revisions(dcc_number)
         try:
             # Return the record with the latest version.
             return max(records, key=lambda record: record.dcc_number)
@@ -321,60 +361,76 @@ class DCCArchive:
             )
 
     def document_dir(self, dcc_number):
-        """The local archive directory for the specified DCC number, without a
-        particular version.
+        """The directory in the local archive of the document corresponding to the
+        specified DCC number.
 
-        This directory is used to store versioned records.
+        This directory contains subdirectories corresponding to revisions (versions) of
+        the document, and may not yet exist.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber`
-            The DCC number.
+            The DCC number. If a version is specified, it is ignored.
 
         Returns
         -------
         :class:`pathlib.Path`
-            The document's directory in the local archive.
+            The directory in the local archive corresponding to the document.
         """
-        return self.archive_dir / dcc_number.string_repr(version=False)
+        return self.archive_dir / dcc_number.format(version=False)
 
-    def record_dir(self, dcc_number):
-        """The local archive directory for the specified DCC number, with a particular
-        version.
+    def revision_dir(self, dcc_number):
+        """The directory in the local archive of the revision corresponding to the
+        specified versioned DCC number.
 
-        This directory is used to store data for a particular version of a DCC record.
+        This directory is used to store data for a particular version of a DCC record,
+        and may not yet exist.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber`
-            The DCC number.
+            The DCC number. Must contain a version.
 
         Returns
         -------
         :class:`pathlib.Path`
-            The record's directory in the local archive.
+            The directory in the local archive corresponding to the document revision.
+
+        Raises
+        ------
+        :class:`.NoVersionError`
+            If `dcc_number` does not contain a version.
         """
         # We require a version.
         if dcc_number.version is None:
             raise NoVersionError()
 
         document_path = self.document_dir(dcc_number)
-        return document_path / dcc_number.string_repr(version=True)
+        return document_path / dcc_number.format(version=True)
 
-    def record_meta_path(self, dcc_number):
-        """The meta file in the local archive for the specified DCC number.
+    def revision_meta_path(self, dcc_number):
+        """The path to the meta file in the local archive of the revision corresponding
+        to the specified DCC number.
+
+        The meta file may not yet exist.
 
         Parameters
         ----------
         dcc_number : :class:`.DCCNumber`
-            The DCC number.
+            The DCC number. Must contain a version.
 
         Returns
         -------
         :class:`pathlib.Path`
-            The record's meta file path in the local archive.
+            The path to the meta file in the local archive corresponding to the document
+            revision.
+
+        Raises
+        ------
+        :class:`.NoVersionError`
+            If `dcc_number` does not contain a version.
         """
-        return self._meta_path(self.record_dir(dcc_number))
+        return self._meta_path(self.revision_dir(dcc_number))
 
     def _meta_path(self, directory):
         return directory / "meta.toml"
@@ -388,7 +444,7 @@ class DCCAuthor:
     uid: int = None
 
     def __str__(self):
-        return f"{self.name} (id {self.uid})"
+        return self.name
 
 
 @dataclass
@@ -429,21 +485,21 @@ class DCCNumber:
         "M": "Management or Policy",
         "P": "Publications",
         "Q": "Quality Assurance documents",
-        "R": "__unknown__",  # Exists (e.g. M1700260 XML) but not public.
+        "R": "Operations Change Requests",
         "S": "Serial numbers",
         "T": "Techical notes",
-        "X": "__unknown__",  # Exists (e.g. T1100286 XML) but not public.
+        "X": "Safety Incident Reports",
     }
 
     def __init__(self, category, numeric=None, version=None):
         # Copy constructor.
         if isinstance(category, DCCNumber):
-            numeric = str(category.numeric)
+            numeric = category.numeric
             try:
                 version = int(category.version)
             except TypeError:
                 pass
-            category = str(category.category)
+            category = category.category
         elif numeric is None:
             # Full number specified in the first argument. Check it's long enough.
             if len(category) < 2:
@@ -468,105 +524,40 @@ class DCCNumber:
                     )
 
                 # Numeric part is between second character and index.
-                numeric = str(category[1:hyphen_index])
+                numeric = category[1:hyphen_index]
 
                 # Version is last part, two places beyond start of hyphen.
-                version = int(category[hyphen_index + 2 :])
+                version = category[hyphen_index + 2 :]
             else:
                 # Numeric is everything after first character.
-                numeric = str(category[1:])
+                numeric = category[1:]
 
             # Category should be first.
-            category = str(category[0])
-        else:
-            # Category is the first argument.
-            category = str(category)
+            category = category[0]
 
         # Check category is valid.
-        if not DCCNumber.is_valid_category(category):
+        category = str(category)
+        if category not in self.document_type_letters:
             raise ValueError(f"Category {repr(category)} is invalid.")
 
         # Check number is valid.
-        if not DCCNumber.is_valid_numeric(numeric):
+        numeric = str(numeric)
+        if not numeric.isdigit():
             raise ValueError(f"Number {repr(numeric)} is invalid")
 
         # Validate version if it was found.
         if version is not None:
-            version = int(version)
-
             # Check version is valid.
-            if not DCCNumber.is_valid_version(version):
+            if not str(version).isdigit():
                 raise ValueError(f"Version {repr(version)} is invalid")
+
+            version = int(version)
 
         self.category = category
         self.numeric = numeric
         self.version = version
 
-    @classmethod
-    def is_valid_category(cls, letter):
-        """Check if the specified category letter is valid.
-
-        Parameters
-        ----------
-        letter : str
-            The category letter to check.
-
-        Returns
-        -------
-        bool
-            True if the category letter is valid; False otherwise.
-        """
-        return letter in cls.document_type_letters
-
-    @staticmethod
-    def is_valid_numeric(numeral):
-        """Check if the specified number is a valid DCC numeral.
-
-        Parameters
-        ----------
-        numeral : str
-            The DCC numeral to check.
-
-        Returns
-        -------
-        bool
-            True if the numeral is valid; False otherwise.
-        """
-        return int(numeral) > 0
-
-    @staticmethod
-    def is_valid_version(version):
-        """Check if the specified version number is valid.
-
-        Parameters
-        ----------
-        version : int
-            The version to check.
-
-        Returns
-        -------
-        bool
-            True if the version is valid; False otherwise.
-        """
-        return int(version) >= 0
-
-    def numbers_equal(self, other):
-        """Check if the category and numeric parts of this number and the specified one
-        match.
-
-        Parameters
-        ----------
-        other : :class:`.DCCNumber`
-            The other DCC number to check.
-
-        Returns
-        -------
-        bool
-            True if the other number and category match; False otherwise.
-        """
-        return other.category == self.category and other.numeric == self.numeric
-
-    def string_repr(self, version=True):
+    def format(self, version=True):
         """String representation of the DCC number, with optional version number.
 
         Parameters
@@ -600,24 +591,31 @@ class DCCNumber:
             return f"-v{self.version}"
 
     def __str__(self):
-        return self.string_repr(version=True)
+        return self.format(version=True)
 
     def __eq__(self, other):
         try:
-            # Compare the category, number and version.
-            return self.numbers_equal(other) and other.version == self.version
+            return all(
+                (
+                    self.category == other.category,
+                    self.numeric == other.numeric,
+                    self.version == other.version,
+                )
+            )
         except Exception:
             return NotImplemented
 
     def __gt__(self, other):
-        if (
-            not self.numbers_equal(other)
-            or self.version is None
-            or other.version is None
-        ):
+        if self.version is None or other.version is None:
             return NotImplemented
 
-        return self.version > other.version
+        return all(
+            (
+                self.category == other.category,
+                self.numeric == other.numeric,
+                self.version > other.version,
+            )
+        )
 
 
 @dataclass
@@ -663,24 +661,22 @@ class DCCFile:
             else:
                 file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Fetch the file from the DCC. First download it to a temporary file, then
-            # move it to the final location if the download was successful. This ensures
-            # interrupted downloads don't leave partially downloaded (corrupt) files in
-            # the archive.
-            with TemporaryFile("w+b") as src:
+            # First fetch the file from the DCC to a temporary file in the same
+            # directory, then move it to the final location, to ensure atomicity.
+            # Just create a new file directly (don't use `tempfile`) so that the new
+            # temporary file has the target directory's intended mode.
+            file_path_tmp = file_path.parent / f".{file_path.name}-tmp"
+            with file_path_tmp.open("w+b") as fobj:
                 # Get the file contents from the DCC.
                 LOGGER.info(f"Downloading {self}")
                 for chunk in session.fetch_file_contents(self):
-                    src.write(chunk)
+                    fobj.write(chunk)
 
-                # Rewind the file so the copy below takes the whole file.
-                src.seek(0)
-
-                LOGGER.info(f"Saving {self} to {file_path}")
-                with file_path.open("wb") as dst:
-                    shutil.copyfileobj(src, dst)
-
-                self.local_path = file_path
+            # Move to the final location.
+            LOGGER.info(f"Saving {self} to {file_path}")
+            # NOTE: remove str() for Python >= 3.9.
+            shutil.move(str(file_path_tmp), str(file_path))  # Atomic when dirs match.
+            self.local_path = file_path
 
     def write(self, path):
         """Write file to the file system.
@@ -734,7 +730,7 @@ class DCCRecord:
     note: str = None
     publication_info: str = None
     journal_reference: DCCJournalRef = None
-    other_versions: List[DCCNumber] = None
+    other_versions: List[int] = None
     creation_date: datetime.datetime = None
     contents_revision_date: datetime.datetime = None
     metadata_revision_date: datetime.datetime = None
@@ -746,14 +742,15 @@ class DCCRecord:
         return f"{self.dcc_number}: {repr(self.title)}"
 
     def __post_init__(self):
+        self.dcc_number = DCCNumber(self.dcc_number)
         ## Lists have to be lists, for serialisation support.
-        self.authors = list(self.authors)
-        self.other_versions = list(self.other_versions)
-        self.files = list(self.files)
+        self.authors = list(self.authors or [])
+        self.other_versions = list(self.other_versions or [])
+        self.files = list(self.files or [])
         # Ensure referencing documents don't include this one.
         pred = lambda number: number.numeric != self.dcc_number.numeric
-        self.referenced_by = list(takewhile(pred, self.referenced_by))
-        self.related_to = list(takewhile(pred, self.related_to))
+        self.referenced_by = list(takewhile(pred, self.referenced_by or []))
+        self.related_to = list(takewhile(pred, self.related_to or []))
 
     @classmethod
     @ensure_session
@@ -784,7 +781,12 @@ class DCCRecord:
         parsed_dcc_number = DCCNumber(*parsed.dcc_number_pieces)
 
         # Make sure the record matches the request.
-        if not parsed_dcc_number.numbers_equal(dcc_number):
+        if any(
+            (
+                parsed_dcc_number.category != dcc_number.category,
+                parsed_dcc_number.numeric != dcc_number.numeric,
+            )
+        ):
             raise ValueError(
                 f"The retrieved record, {parsed_dcc_number}, is different from the "
                 f"requested one, {dcc_number}."

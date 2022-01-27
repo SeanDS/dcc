@@ -31,13 +31,13 @@ Options require a value of some sort, whereas flags don't.
     Linux). To persist archive data across invocations of the tool, ensure this option
     is set.
 
-.. option:: --prefer-local
+.. option:: --ignore-version
 
-    When :option:`DCC number <dcc DCC_NUMBER>` doesn't contain a version, prefer the
-    latest archived record over the latest remote record. Without this flag, a record
-    without a version such as ``T010075`` (as opposed to ``T010075-v1``) will *always*
-    be fetched from the remote DCC host as it is otherwise not possible to determine if
-    any locally archived version is the latest.
+    Attempt to fetch the latest version of the document specified in :option:`DCC_NUMBER
+    <dcc DCC_NUMBER>` from the local archive regardless of the version specified. If no
+    local version exists, the version of the document given in :option:`DCC_NUMBER <dcc
+    DCC_NUMBER>` (or, if no version is specified, the latest version) will still be
+    fetched from the DCC.
 
 .. option:: --depth
 
@@ -116,19 +116,18 @@ Options require a value of some sort, whereas flags don't.
 
 .. program:: dcc archive
 
-Archive remote DCC record data locally.
+Archive remote DCC records locally using DCC numbers listed in file.
 
-:option:`DCC_NUMBER <dcc archive DCC_NUMBER>` should be a DCC record designation with
-optional version such as ``D040105`` or ``D040105-v1``.
+Each DCC number in :option:`SRC <dcc archive SRC>` should be a DCC record designation
+with optional version such as 'D040105' or 'D040105-v1'.
 
-If :option:`DCC_NUMBER <dcc archive DCC_NUMBER>` contains a version and is present in
-the local archive, it is used unless :option:`--force <dcc archive --force>` is
-specified. If :option:`DCC_NUMBER <dcc archive DCC_NUMBER>` does not contain a version,
-a version exists in the local archive, and :option:`--prefer-local <dcc archive
---prefer-local>` is specified, the latest local version is used. In all other cases, the
-latest record is fetched from the remote host.
+If a DCC number contains a version and is present in the local archive, it is used
+unless :option:`--force <dcc archive --force>` is specified. If the DCC number does not
+contain a version, a version exists in the local archive, and :option:`--ignore-version
+<dcc archive --ignore-version>` is specified, the latest local version is used. In all
+other cases, the latest record is fetched from the remote host.
 
-.. option:: DCC_NUMBER
+.. option:: SRC
 
     The number for the DCC record to archive.
 
@@ -156,13 +155,12 @@ latest record is fetched from the remote host.
     Linux). To persist archive data across invocations of the tool, ensure this option
     is set.
 
-.. option:: --prefer-local
+.. option:: --ignore-version
 
-    When :option:`DCC number <dcc archive DCC_NUMBER>` doesn't contain a version, prefer
-    the latest archived record over the latest remote record. Without this flag, a
-    record without a version such as ``T010075`` (as opposed to ``T010075-v1``) will
-    *always* be fetched from the remote DCC host as it is otherwise not possible to
-    determine if any locally archived version is the latest.
+    Attempt to fetch the latest version of each DCC number from the local archive
+    regardless of the version specified. If no local version exists, the version of the
+    document given in the DCC number (or, if no version is specified, the latest
+    version) will still be fetched from the DCC.
 
 .. option:: --max-file-size
 
@@ -201,6 +199,42 @@ latest record is fetched from the remote host.
 
     Only attempt to retrieve public DCC records. This should avoid triggering an
     authentication check.
+
+.. option:: -v, --verbose
+
+    Increase the program's verbosity. This can be specified multiple times to further
+    increase verbosity.
+
+.. option:: -q, --quiet
+
+    Decrease the program's verbosity. This can be specified multiple times to further
+    decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
+``dcc convert``
+---------------
+
+.. program:: dcc convert
+
+Extract DCC numbers from a target file or URL and write to DST.
+
+Any text in the document at :option:`SRC <dcc convert SRC>` that appears to be a DCC
+number is written to :option:`DST <dcc convert DST>`.
+
+:option:`SRC <dcc convert SRC>` can be a path to a local file (or stdin) or a web
+address.
+
+.. option:: SRC
+
+    The file or URL to scrape for DCC numbers. Can be a path to a local file or a web
+    address.
+
+.. option:: DST
+
+    The file to write extracted DCC numbers to.
 
 .. option:: -v, --verbose
 
@@ -312,9 +346,9 @@ selected in the default file browser.
 If :option:`DCC_NUMBER <dcc open-file DCC_NUMBER>` contains a version and is present in
 the local archive, it is used unless :option:`--force <dcc open-file --force>` is
 specified. If :option:`DCC_NUMBER <dcc open-file DCC_NUMBER>` does not contain a
-version, a version exists in the local archive, and :option:`--prefer-local <dcc
-open-file --prefer-local>` is specified, the latest local version is used. In all other
-cases, the latest record is fetched from the remote host.
+version, a version exists in the local archive, and :option:`--ignore-version <dcc
+open-file --ignore-version>` is specified, the latest local version is used. In all
+other cases, the latest record is fetched from the remote host.
 
 .. option:: DCC_NUMBER
 
@@ -332,13 +366,13 @@ cases, the latest record is fetched from the remote host.
     Linux). To persist archive data across invocations of the tool, ensure this option
     is set.
 
-.. option:: --prefer-local
+.. option:: --ignore-version
 
-    When :option:`DCC number <dcc open-file DCC_NUMBER>` doesn't contain a version,
-    prefer the latest archived record over the latest remote record. Without this flag,
-    a record without a version such as ``T010075`` (as opposed to ``T010075-v1``) will
-    *always* be fetched from the remote DCC host as it is otherwise not possible to
-    determine if any locally archived version is the latest.
+    Attempt to fetch the latest version of the document specified in :option:`DCC_NUMBER
+    <dcc open-file DCC_NUMBER>` from the local archive regardless of the version
+    specified. If no local version exists, the version of the document given in
+    :option:`DCC_NUMBER <dcc open-file DCC_NUMBER>` (or, if no version is specified, the
+    latest version) will still be fetched from the DCC.
 
 .. option:: --max-file-size
 
@@ -349,110 +383,6 @@ cases, the latest record is fetched from the remote host.
 .. option:: --locate
 
     Instead of opening the file, open a file browser with the downloaded file selected.
-
-.. option:: --progress, --no-progress
-
-    Show or hide a download progress bar. For small files the progress bar may not be
-    shown. By default this is enabled.
-
-.. option:: -f, --force
-
-    Force retrieval of a record or file from the remote DCC host even if it exists in
-    the local archive. The locally archived record or file is overwritten with the
-    retrieved version.
-
-.. option:: --host
-
-    The DCC host to use. If not specified, the :ref:`DCC_HOST <env_dcc_host>`
-    environment variable is used if set, otherwise https://dcc.ligo.org/.
-
-.. option:: --idp-host
-
-    The identity provider host to use. If not specified, the :ref:`ECP_IDP
-    <env_idp_host>` environment variable is used if set, otherwise
-    https://login.ligo.org/.
-
-.. option:: --public
-
-    Only attempt to retrieve public DCC records. This should avoid triggering an
-    authentication check.
-
-.. option:: -v, --verbose
-
-    Increase the program's verbosity. This can be specified multiple times to further
-    increase verbosity.
-
-.. option:: -q, --quiet
-
-    Decrease the program's verbosity. This can be specified multiple times to further
-    decrease verbosity.
-
-.. option:: --debug
-
-    Show full exceptions when errors are encountered.
-
-``dcc scrape``
---------------
-
-.. program:: dcc scrape
-
-Extract and archive DCC records from URL.
-
-Any text found on the page at :option:`URL <dcc scrape URL>` that appears to be a DCC
-number is fetched and archived.
-
-If any found DCC number contains a version and is present in the local archive, it is
-used unless :option:`--force <dcc scrape --force>` is specified. If the DCC number does
-not contain a version, a version exists in the local archive, and
-:option:`--prefer-local <dcc scrape --prefer-local>` is specified, the latest local
-version is used. In all other cases, the latest record is fetched from the remote host.
-
-.. option:: URL
-
-    The URL to scrape for DCC numbers.
-
-.. option:: --depth
-
-    Recursively fetch referencing documents up to this many levels.
-
-.. option:: --fetch-related, --no-fetch-related
-
-    Fetch related documents when :option:`--depth <dcc --depth>` is nonzero.
-
-.. option:: --fetch-referencing, --no-fetch-referencing
-
-    Fetch referencing documents when :option:`--depth <dcc --depth>` is nonzero.
-
-.. option:: --files
-
-    In addition to fetching the record, fetch its attached files too.
-
-.. option:: -s, --archive-dir
-
-    Directory to use to archive and retrieve downloaded documents and files. If not
-    specified, the :ref:`DCC_ARCHIVE <env_dcc_archive>` environment variable is used if
-    set, otherwise defaults to the system's temporary directory (e.g. ``/tmp`` on
-    Linux). To persist archive data across invocations of the tool, ensure this option
-    is set.
-
-.. option:: --prefer-local
-
-    When a scraped DCC number doesn't contain a version, prefer the latest archived
-    record over the latest remote record. Without this flag, a record without a version
-    such as ``T010075`` (as opposed to ``T010075-v1``) will *always* be fetched from the
-    remote DCC host as it is otherwise not possible to determine if any locally archived
-    version is the latest.
-
-.. option:: --max-file-size
-
-    Maximum file size to download, in MB. If larger, the file is skipped. Note: this
-    behaviour relies on the DCC host providing a ``Content-Length`` header. If it does
-    not, the file is downloaded regardless of its real size.
-
-.. option:: --skip-category
-
-    Skip retrieval of a particular document type, such as ``M`` ("Management or
-    Policy"). This can be specified multiple times, for different document types.
 
 .. option:: --progress, --no-progress
 
@@ -592,7 +522,7 @@ optional version such as ``D040105`` or ``D040105-v1``.
 If :option:`DCC_NUMBER <dcc view DCC_NUMBER>` contains a version and is present in the
 local archive, it is used unless :option:`--force <dcc view --force>` is specified. If
 :option:`DCC_NUMBER <dcc view DCC_NUMBER>` does not contain a version, a version exists
-in the local archive, and :option:`--prefer-local <dcc view --prefer-local>` is
+in the local archive, and :option:`--ignore-version <dcc view --ignore-version>` is
 specified, the latest local version is used. In all other cases, the latest record is
 fetched from the remote host.
 
@@ -608,13 +538,13 @@ fetched from the remote host.
     Linux). To persist archive data across invocations of the tool, ensure this option
     is set.
 
-.. option:: --prefer-local
+.. option:: --ignore-version
 
-    When :option:`DCC number <dcc view DCC_NUMBER>` doesn't contain a version, prefer
-    the latest archived record over the latest remote record. Without this flag, a
-    record without a version such as ``T010075`` (as opposed to ``T010075-v1``) will
-    *always* be fetched from the remote DCC host as it is otherwise not possible to
-    determine if any locally archived version is the latest.
+    Attempt to fetch the latest version of the document specified in :option:`DCC_NUMBER
+    <dcc view DCC_NUMBER>` from the local archive regardless of the version specified.
+    If no local version exists, the version of the document given in :option:`DCC_NUMBER
+    <dcc view DCC_NUMBER>` (or, if no version is specified, the latest version) will
+    still be fetched from the DCC.
 
 .. option:: -f, --force
 

@@ -4,6 +4,7 @@ import sys
 import logging
 from textwrap import dedent
 from pathlib import Path
+from urllib.parse import urlparse
 from functools import partial
 from datetime import datetime
 from dataclasses import dataclass
@@ -14,7 +15,7 @@ import click
 
 from . import __version__, PROGRAM, AUTHORS, PROJECT_URL
 from .records import DCCArchive, DCCNumber, DCCAuthor
-from .sessions import DCCSession
+from .sessions import DCCAuthenticatedSession, DCCUnauthenticatedSession
 from .parsers import DCCParser
 from .env import DEFAULT_HOST, DEFAULT_IDP
 from .util import change_exc_msg
@@ -94,14 +95,16 @@ archive_dir_option = click.option(
         "directory."
     ),
 )
-prefer_local_archive_option = click.option(
-    "--prefer-local",
+ignore_version_option = click.option(
+    "--ignore-version",
     is_flag=True,
     default=False,
     show_default=True,
     help=(
-        "When DCC_NUMBER doesn't contain a version, prefer latest archived record over "
-        "the latest remote record."
+        "Fetch the latest local version of the specified document regardless of the "
+        "version given. If no local version exists, the requested (or, if no "
+        "version is specified, the latest) version of the document will still be "
+        "fetched from the DCC."
     ),
 )
 depth_option = click.option(
@@ -278,7 +281,7 @@ def _archive_record(
     fetch_related,
     fetch_referencing,
     files,
-    prefer_local,
+    ignore_version,
     skip_categories,
     force,
     session,
@@ -303,7 +306,7 @@ def _archive_record(
         try:
             record = archive.fetch_record(
                 number,
-                prefer_local_archive=prefer_local,
+                ignore_version=ignore_version,
                 overwrite=force,
                 fetch_files=files,
                 ignore_too_large=True,
@@ -331,7 +334,7 @@ def _archive_record(
             result.other_error += 1
             return
 
-        seen.add(record.dcc_number.string_repr(version=False))
+        seen.add(record.dcc_number.format(version=False))
         result.archived += 1
 
         if files:
@@ -340,14 +343,14 @@ def _archive_record(
         if level > 0:
             if fetch_related:
                 for ref in record.related_to:
-                    if ref.string_repr(version=False) in seen:
+                    if ref.format(version=False) in seen:
                         continue
 
                     _do_fetch(ref, level=level - 1)
 
             if fetch_referencing:
                 for ref in record.referenced_by:
-                    if ref.string_repr(version=False) in seen:
+                    if ref.format(version=False) in seen:
                         continue
 
                     _do_fetch(ref, level=level - 1)
@@ -383,20 +386,30 @@ class _State:
             if self.verbose:
                 progress = self._download_progress_hook
 
-        return DCCSession(
-            self.dcc_host,
-            self.idp_host,
-            public=self.public,
+        kwargs = dict(
             max_file_size=self.max_file_size,
             simulate=self.dry_run,
             download_progress_hook=progress,
         )
 
+        if self.public:
+            self.echo_info("Creating unauthenticated DCC session.")
+            session_type = DCCUnauthenticatedSession
+        else:
+            self.echo_info(
+                f"Creating authenticated DCC session with IDP {self.idp_host}."
+            )
+            session_type = DCCAuthenticatedSession
+            kwargs["idp"] = self.idp_host
+
+        return session_type(self.dcc_host, **kwargs)
+
     @contextmanager
     def dcc_archive(self):
-        archive_dir = self.archive_dir
-
-        if archive_dir is None:
+        if (archive_dir := self.archive_dir) is not None:
+            self.archive_is_temporary = False
+            yield self._dcc_archive(archive_dir)
+        else:
             # Use a temporary directory.
             self.echo_info(
                 "-s/--archive-dir not specified. Downloaded records will not be "
@@ -409,9 +422,6 @@ class _State:
                 self.echo_debug("Creating temporary directory for use as archive.")
                 yield self._dcc_archive(archive_dir)
                 self.echo_debug("Removing temporary archive.")
-        else:
-            self.archive_is_temporary = False
-            yield self._dcc_archive(archive_dir)
 
         # Reset.
         self.archive_is_temporary = None
@@ -588,7 +598,7 @@ def dcc():
 @dcc.command()
 @dcc_number_argument
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @force_option
 @dcc_host_option
 @idp_host_option
@@ -597,7 +607,7 @@ def dcc():
 @quiet_option
 @debug_option
 @click.pass_context
-def view(ctx, dcc_number, prefer_local, force):
+def view(ctx, dcc_number, ignore_version, force):
     """View DCC record metadata.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -605,7 +615,7 @@ def view(ctx, dcc_number, prefer_local, force):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local is specified, the latest local
+    exists in the local archive, and --ignore-version is specified, the latest local
     version is used. In all other cases, the latest record is fetched from the remote
     host.
 
@@ -618,7 +628,7 @@ def view(ctx, dcc_number, prefer_local, force):
         try:
             record = archive.fetch_record(
                 dcc_number,
-                prefer_local_archive=prefer_local,
+                ignore_version=ignore_version,
                 overwrite=force,
                 session=session,
             )
@@ -632,7 +642,7 @@ def view(ctx, dcc_number, prefer_local, force):
         state.echo_record(record, session)
 
 
-@dcc.command()
+@dcc.command("open")
 @dcc_number_argument
 @click.option(
     "--xml",
@@ -648,7 +658,7 @@ def view(ctx, dcc_number, prefer_local, force):
 @quiet_option
 @debug_option
 @click.pass_context
-def open(ctx, dcc_number, xml):
+def open_(ctx, dcc_number, xml):
     """Open remote DCC record page in the default browser.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -666,7 +676,7 @@ def open(ctx, dcc_number, xml):
 @dcc_number_argument
 @click.argument("file_number", type=click.IntRange(min=1))
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @max_file_size_option
 @click.option(
     "--locate",
@@ -686,7 +696,7 @@ def open(ctx, dcc_number, xml):
 @quiet_option
 @debug_option
 @click.pass_context
-def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
+def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
     """Open file attached to DCC record using operating system.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -699,7 +709,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 
     If DCC_NUMBER contains a version and is present in the local archive, it is used
     unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local is specified, the latest local
+    exists in the local archive, and --ignore-version is specified, the latest local
     version is used. In all other cases, the latest record is fetched from the remote
     host.
 
@@ -713,7 +723,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
         try:
             record = archive.fetch_record(
                 dcc_number,
-                prefer_local_archive=prefer_local,
+                ignore_version=ignore_version,
                 overwrite=force,
                 session=session,
             )
@@ -741,7 +751,7 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
             # prevents the application from opening it. Copy the file to a temporary
             # location that won't be # deleted when the context ends.
             temp_path = NamedTemporaryFile(
-                prefix="dcc-", suffix=f"-{file_.filename.name}", delete=False
+                prefix="dcc-", suffix=f"-{file_.filename}", delete=False
             )
             state.echo_debug(
                 f"Copying {file_} to persistent temporary location {temp_path.name}"
@@ -756,13 +766,13 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 
 
 @dcc.command()
-@dcc_number_argument
+@click.argument("src", type=click.File("r"))
 @depth_option
 @fetch_related_option
 @fetch_referencing_option
 @files_option
 @archive_dir_option
-@prefer_local_archive_option
+@ignore_version_option
 @max_file_size_option
 @skip_categories_option
 @download_progress_option
@@ -776,23 +786,23 @@ def open_file(ctx, dcc_number, file_number, prefer_local, locate, force):
 @click.pass_context
 def archive(
     ctx,
-    dcc_number,
+    src,
     depth,
     fetch_related,
     fetch_referencing,
     files,
-    prefer_local,
+    ignore_version,
     skip_category,
     force,
 ):
-    """Archive remote DCC record data locally.
+    """Archive remote DCC records locally using DCC numbers listed in file.
 
-    DCC_NUMBER should be a DCC record designation with optional version such as
-    'D040105' or 'D040105-v1'.
+    Each DCC number in SRC should be a DCC record designation with optional version
+    such as 'D040105' or 'D040105-v1'.
 
-    If DCC_NUMBER contains a version and is present in the local archive, it is used
-    unless --force is specified. If DCC_NUMBER does not contain a version, a version
-    exists in the local archive, and --prefer-local is specified, the latest local
+    If a DCC number contains a version and is present in the local archive, it is used
+    unless --force is specified. If the DCC number does not contain a version, a version
+    exists in the local archive, and --ignore-version is specified, the latest local
     version is used. In all other cases, the latest record is fetched from the remote
     host.
 
@@ -805,19 +815,29 @@ def archive(
         result = ArchiveResult()
 
         try:
-            result += _archive_record(
-                state,
-                archive,
-                dcc_number,
-                depth,
-                fetch_related,
-                fetch_referencing,
-                files,
-                prefer_local,
-                skip_category,
-                force,
-                session,
-            )
+            while numbers := src.readline():
+                numbers = numbers.split()
+
+                for number in numbers:
+                    number = number.strip()
+
+                    if not number:
+                        # Skip invalid.
+                        continue
+
+                    result += _archive_record(
+                        state,
+                        archive,
+                        number,
+                        depth,
+                        fetch_related,
+                        fetch_referencing,
+                        files,
+                        ignore_version,
+                        skip_category,
+                        force,
+                        session,
+                    )
         finally:
             state.echo(result)
 
@@ -837,80 +857,41 @@ def list_(ctx):
     state = ctx.ensure_object(_State)
 
     with state.dcc_archive() as archive, state.dcc_session() as session:
-        for record in archive.records():
+        for record in archive.records:
             state.echo_record(record, session)
             state.echo()  # Empty line.
 
 
 @dcc.command()
-@click.argument("url", type=str)
-@depth_option
-@fetch_related_option
-@fetch_referencing_option
-@files_option
-@archive_dir_option
-@prefer_local_archive_option
-@max_file_size_option
-@skip_categories_option
-@download_progress_option
-@force_option
-@dcc_host_option
-@idp_host_option
-@public_option
+@click.argument("src", type=str)
+@click.argument("dst", type=click.File("w"))
 @verbose_option
 @quiet_option
 @debug_option
 @click.pass_context
-def scrape(
-    ctx,
-    url,
-    depth,
-    fetch_related,
-    fetch_referencing,
-    files,
-    prefer_local,
-    skip_category,
-    force,
-):
-    """Extract and archive DCC records from URL.
+def convert(ctx, src, dst):
+    """Extract DCC numbers from a target file or URL.
 
-    Any text found on the page at URL that appears to be a DCC number is fetched and
-    archived.
+    Any text in the document at SRC that appears to be a DCC number is written to
+    DST.
 
-    If any found DCC number contains a version and is present in the local archive, it
-    is used unless --force is specified. If the DCC number does not contain a version, a
-    version exists in the local archive, and --prefer-local is specified, the latest
-    local version is used. In all other cases, the latest record is fetched from the
-    remote host.
-
-    It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
-    variable in order to persist downloaded data across invocations of this tool.
+    SRC can be a path to a local file or a web address.
     """
     state = ctx.ensure_object(_State)
 
-    with state.dcc_archive() as archive, state.dcc_session() as session:
-        response = session.get(url)
-        parsed = DCCParser(response.text)
+    with state.dcc_session() as session:
+        if urlparse(src).netloc:
+            # The URL is remote.
+            text = session.get(src).text
+        else:
+            # Assume the URL is a local file.
+            with click.open_file(src, "rb") as fobj:
+                text = fobj.read()
 
-        result = ArchiveResult()
+        parsed = DCCParser(text)
 
-        try:
-            for dcc_number in parsed.html_dcc_numbers():
-                result += _archive_record(
-                    state,
-                    archive,
-                    dcc_number,
-                    depth,
-                    fetch_related,
-                    fetch_referencing,
-                    files,
-                    prefer_local,
-                    skip_category,
-                    force,
-                    session,
-                )
-        finally:
-            state.echo(result)
+        for dcc_number in parsed.dcc_numbers():
+            dst.write(f"{dcc_number}\n")
 
 
 @dcc.command()
@@ -993,7 +974,7 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
 
         # Save the document's changes locally. Set overwrite argument to ensure changes
         # are made.
-        archive.archive_record_metadata(record, overwrite=True)
+        archive.archive_revision_metadata(record, overwrite=True)
 
         state.echo(f"Successfully updated {record.dcc_number}.")
 
