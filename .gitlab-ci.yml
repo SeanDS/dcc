@@ -110,10 +110,32 @@ pages:
   needs:
     - docs/html
     - test/py38
+    - test/py310
   only:
-    - tags
+    - tags@sean-leavey/dcc
+    - /^dcc-\d(.\d){2}$/
   script:
     - mv docs/build/html public
   artifacts:
     paths:
       - public
+
+# Publish PyPI release only for tagged releases, and only when tests pass.
+pypi:
+  stage: deploy
+  needs:
+    - docs/html
+    - test/py38
+    - test/py310
+  only:
+    - tags@sean-leavey/dcc
+    - /^dcc-\d(.\d){2}$/
+  variables:
+    # PyPI credentials (overridden by protected variables in CI configuration).
+    TWINE_USERNAME: "__token__"
+    TWINE_PASSWORD: ""
+  before_script:
+    # Install packaging dependencies.
+    - pip install twine
+  script:
+    - twine upload dist/dcc-*
