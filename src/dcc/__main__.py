@@ -824,7 +824,7 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
     expose_value=False,
     help=(
         "Enable interactive mode, which prompts for confirmation before downloading "
-        "files. This flag implies --files."
+        "files. This flag implies --files, and --max-file-size is ignored."
     ),
 )
 @archive_dir_option

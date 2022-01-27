@@ -154,7 +154,8 @@ other cases, the latest record is fetched from the remote host.
 .. option:: -i, --interactive
 
     Enable interactive mode, which prompts for confirmation before downloading files.
-    This flag implies :option:`--files <dcc archive --files>`.
+    This flag implies :option:`--files <dcc archive --files>`, and
+    :option:`--max-file-size <dcc archive --max-file-size>` is ignored.
 
 .. option:: -s, --archive-dir
 
