@@ -25,7 +25,6 @@ from .exceptions import (
     UnauthorisedError,
     FileSkippedException,
     TooLargeFileSkippedException,
-    DryRun,
 )
 
 
@@ -166,18 +165,6 @@ download_progress_option = click.option(
     callback=partial(_set_state_flag, flag="show_progress"),
     expose_value=False,
     help="Show progress bar.",
-)
-
-# Updating.
-dry_run_option = click.option(
-    "-n",
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    callback=partial(_set_state_flag, flag="dry_run"),
-    expose_value=False,
-    help="Perform a trial run with no changes made.",
 )
 
 # Verbosity.
@@ -389,7 +376,6 @@ class _State:
         self.idp_host = DEFAULT_IDP
         self.archive_dir = None
         self.interactive = None
-        self.dry_run = None
         self.max_file_size = None
         self.show_progress = None
         self.public = None
@@ -398,7 +384,7 @@ class _State:
         self._verbosity = logging.WARNING
 
     def dcc_session(self):
-        kwargs = dict(simulate=self.dry_run, stream_hook=self._stream_hook)
+        kwargs = dict(stream_hook=self._stream_hook)
 
         if self.public:
             self.echo_info("Creating unauthenticated DCC session.")
@@ -981,7 +967,13 @@ def convert(ctx, src, dst):
     multiple=True,
     help="An author (can be specified multiple times).",
 )
-@dry_run_option
+@click.option(
+    "--confirm/--no-confirm",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Prompt for confirmation before making changes.",
+)
 @archive_dir_option
 @force_option
 @dcc_host_option
@@ -990,7 +982,9 @@ def convert(ctx, src, dst):
 @quiet_option
 @debug_option
 @click.pass_context
-def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, force):
+def update(
+    ctx, dcc_number, title, abstract, keywords, note, related, authors, confirm, force
+):
     """Update remote DCC record metadata.
 
     DCC_NUMBER should be a DCC record designation with optional version such as
@@ -1021,6 +1015,11 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
         if authors:
             record.authors = [DCCAuthor(name) for name in authors]
 
+        state.echo_record(record, session)
+
+        if confirm and not click.confirm("Submit changes to DCC?"):
+            state.echo_error("Aborted!", exit_=True)
+
         try:
             record.update(session=session)
         except UnrecognisedDCCRecordError as err:
@@ -1031,8 +1030,6 @@ def update(ctx, dcc_number, title, abstract, keywords, note, related, authors, f
                 err, f"You are not authorised to modify {record.dcc_number}."
             )
             state.echo_exception(err, exit_=True)
-        except DryRun:
-            state.echo("-n/--dry-run specified; nothing modified.", exit_=True)
 
         # Save the document's changes locally. Set overwrite argument to ensure changes
         # are made.

@@ -26,8 +26,9 @@ Check existing archive for missing downloads
 --------------------------------------------
 
 The :option:`--max-file-size <dcc --max-file-size>` option allows ignoring large files
-when archiving. This script searches the archive for (latest) records with missing files
-with certain extensions and reports them:
+when archiving. You may wish to archive files of a certain type without size limits.
+This script searches the archive for (latest) records with missing files with certain
+extensions and reports them:
 
 .. code-block:: python
 
@@ -60,3 +61,7 @@ archive`:
     # Assume script above is stored in "file_missing.py".
     $ python find_missing.py > missing.txt
     $ dcc archive -s /path/to/archive --from-file missing.txt --files
+
+The interactive mode flag :option:`-i <dcc archive -i>` (or :option:`--interactive <dcc
+archive --interactive>`) can be useful here, which prompts before downloading each file,
+allowing you to skipones you don't want.

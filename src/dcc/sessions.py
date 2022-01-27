@@ -5,7 +5,6 @@ import logging
 from requests import Session
 from ciecplib import Session as CIECPSession
 from .env import DEFAULT_HOST, DEFAULT_IDP
-from .exceptions import DryRun
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,10 +36,6 @@ class DCCSession(metaclass=abc.ABCMeta):
     host : str
         The DCC host to use.
 
-    simulate : bool, optional
-        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
-        exception.
-
     stream_hook : callable, optional
         Function taking a stream type, the item being streamed, and a
         :class:`requests.Response` object from a streamed GET or POST request, yielding
@@ -58,7 +53,6 @@ class DCCSession(metaclass=abc.ABCMeta):
         self,
         host,
         *,
-        simulate=False,
         stream_hook=None,
         **kwargs,
     ):
@@ -70,18 +64,7 @@ class DCCSession(metaclass=abc.ABCMeta):
                 yield from response
 
         self.host = host
-        self.simulate = simulate
         self.stream_hook = stream_hook
-
-    def post(self, *args, **kwargs):
-        if self.simulate:
-            LOGGER.info(
-                "Simulation enabled; skipping update (view debug logs for intended "
-                "request)."
-            )
-            raise DryRun()
-
-        return super().post(*args, **kwargs)
 
     def fetch_record_page(self, dcc_number):
         """Fetch a DCC record page.
@@ -235,10 +218,6 @@ class DCCAuthenticatedSession(DCCSession, CIECPSession):
 
     Other Parameters
     ----------------
-    simulate : bool, optional
-        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
-        exception.
-
     stream_hook : callable, optional
         Function taking a response type and a :class:`requests.Response` object from a
         GET or POST request, yielding its body content. This can be used to implement
@@ -266,10 +245,6 @@ class DCCUnauthenticatedSession(DCCSession, Session):
 
     Other Parameters
     ----------------
-    simulate : bool, optional
-        Instead of making POST requests to the remote DCC host, raise a :class:`.DryRun`
-        exception.
-
     stream_hook : callable, optional
         Function taking a response type and a :class:`requests.Response` object from a
         GET or POST request, yielding its body content. This can be used to implement

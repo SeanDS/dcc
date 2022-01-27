@@ -164,16 +164,16 @@ to" and "referenced by" records can be switched on and off using
     --depth>` is likely to lead to thousands of records being downloaded. Typically only
     a value of 1 or 2 is sufficient to archive almost every relevant related record.
 
-For example, the referenced documents of ``T010075`` can be archived alongside
-``T010075`` itself using:
+For example, the referenced documents of ``E1300945`` can be archived alongside
+``E1300945`` itself using:
 
 .. code-block:: text
 
-    # Fetch "related to" documents as well as T010075 itself:
-    $ dcc archive -s /path/to/archive T010075 --depth 1
+    # Fetch "related to" documents as well as E1300945 itself:
+    $ dcc archive -s /path/to/archive E1300945 --depth 1
 
     # Fetch "referenced by" documents as well:
-    $ dcc archive -s /path/to/archive T010075 --depth 1 --fetch-referencing -
+    $ dcc archive -s /path/to/archive E1300945 --depth 1 --fetch-referencing
 
 .. _updating_record_metadata:
 
@@ -190,17 +190,22 @@ Record metadata can be updated via ``dcc`` using :program:`dcc update`. This acc
 The :option:`--keyword <dcc update --keyword>`, :option:`--related <dcc update
 --related>`, and :option:`--author <dcc update --author>` options can be specified
 multiple times to set multiple values. Author names should be as written, e.g. "Albert
-Einstein", and should correspond to real DCC users.
+Einstein", and should correspond to real DCC users. For example:
+
+.. code-block:: text
+
+    # Update the title of T2200016.
+    $ dcc update T2200016 --title "A new title"
+
+By default, :program:`dcc update` will prompt for confirmation before sending the
+updated record to the DCC. To make changes without any confirmation, specify the flag
+:option:`--no-confirm <dcc update --no-confirm>`. Submitted changes are irreversible, so
+be careful.
 
 .. note::
 
     The DCC does not appear to perform error checking on author names. If an author is
     not given correctly, it is simply discarded.
-
-A dry run can be performed, meaning nothing actually gets updated on the remote DCC
-host, by specifying the :option:`-n <dcc -n>` or :option:`--dry-run <dcc --dry-run>`
-flag. Used in combination with :option:`-v <dcc -v>`, this can give you an idea of the
-changes that will be made to the record without actually making them.
 
 .. _changing_host:
 

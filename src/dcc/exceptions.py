@@ -52,7 +52,3 @@ class TooLargeFileSkippedException(FileSkippedException):
         super().__init__(
             dcc_file, f"{dcc_file} size too large ({size} > {allowed} bytes)"
         )
-
-
-class DryRun(Exception):
-    """A dry run has taken place."""

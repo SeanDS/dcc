@@ -77,10 +77,6 @@ Options require a value of some sort, whereas flags don't.
     Show or hide a download progress bar. For small files the progress bar may not be
     shown. By default this is enabled.
 
-.. option:: -n, --dry-run
-
-    Perform a trial run of a potentially destructive operation, making no real changes.
-
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further
@@ -476,9 +472,10 @@ metadata for that field.
 
     An author in the form "Albert Einstein" (can be specified multiple times).
 
-.. option:: -n, --dry-run
+.. option:: --confirm, --no-confirm
 
-    Perform a trial run of a the remote update, making no real changes.
+    Prompt (``--confirm``) or don't prompt (``--no-confirm``) for confirmation before
+    actually submitting the update to the remote DCC host.
 
 .. option:: -s, --archive-dir
 
