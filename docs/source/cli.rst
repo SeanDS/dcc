@@ -121,10 +121,10 @@ Archive remote DCC records locally.
 Each specified :option:`NUMBER <dcc archive NUMBER>` should be a DCC record designation
 with optional version such as 'D040105' or 'D040105-v1'.
 
-If a DCC number contains a version and is present in the local archive, it is used
+If a DCC number contains a version and is present in the local archive, it is skipped
 unless :option:`--force <dcc archive --force>` is specified. If the DCC number does not
 contain a version, a version exists in the local archive, and :option:`--ignore-version
-<dcc archive --ignore-version>` is specified, the latest local version is used. In all
+<dcc archive --ignore-version>` is specified, its archival is skipped as well. In all
 other cases, the latest record is fetched from the remote host.
 
 .. option:: NUMBER
