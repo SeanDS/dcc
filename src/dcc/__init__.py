@@ -8,6 +8,6 @@ PROJECT_URL = "https://docs.ligo.org/sean-leavey/dcc/"
 try:
     from ._version import version as __version__
 except ImportError:
-    raise Exception("Could not find version.py. Ensure you have run setup.")
+    raise FileNotFoundError("Could not find version.py. Ensure you have run setup.")
 
 __all__ = ("PROGRAM", "AUTHORS", "PROJECT_URL", "__version__")
