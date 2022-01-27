@@ -123,6 +123,7 @@ pages:
 # Publish PyPI release only for tagged releases, and only when tests pass.
 pypi:
   stage: deploy
+  image: python:3.8
   needs:
     - docs/html
     - test/py38
