@@ -509,7 +509,10 @@ class DCCNumber:
         elif numeric is None:
             # Full number specified in the first argument. Check it's long enough.
             if len(category) < 2:
-                raise ValueError("Invalid DCC number; should be of the form 'T0123456'")
+                raise ValueError(
+                    f"Invalid DCC number {repr(category)}; should be of the form "
+                    f"'T0123456'"
+                )
 
             # Get rid of first "LIGO-" if present.
             if category.startswith("LIGO-"):

@@ -116,10 +116,11 @@ Options require a value of some sort, whereas flags don't.
 
 .. program:: dcc archive
 
-Archive remote DCC records locally using DCC numbers listed in file.
+Archive remote DCC records locally.
 
-Each DCC number in :option:`SRC <dcc archive SRC>` should be a DCC record designation
-with optional version such as 'D040105' or 'D040105-v1'.
+Each DCC number in :option:`SRC <dcc archive SRC>` or :option:`--number <dcc archive
+--number>` should be a DCC record designation with optional version such as 'D040105' or
+'D040105-v1'.
 
 If a DCC number contains a version and is present in the local archive, it is used
 unless :option:`--force <dcc archive --force>` is specified. If the DCC number does not
@@ -129,7 +130,12 @@ other cases, the latest record is fetched from the remote host.
 
 .. option:: SRC
 
-    The number for the DCC record to archive.
+    Path to a file containing DCC numbers to archive, separated by whitespace (can be
+    specified multiple times).
+
+.. option:: --number
+
+    Fetch record with specified number (can be specified multiple times).
 
 .. option:: --depth
 

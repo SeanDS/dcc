@@ -79,24 +79,31 @@ Record archival
 
 DCC records can be archived locally using :program:`dcc archive`. This downloads
 records' metadata, and optionally attached files, and stores them in the :ref:`local
-archive <local_archive>` for later retrieval. The command requires an input file
-containing the DCC numbers to archive, separated by whitespace. For example:
+archive <local_archive>` for later retrieval. The command requires one or more of an
+input file containing the DCC numbers to archive, separated by whitespace, or
+:option:`--number <dcc archive --number>` followed by a DCC number. For example:
 
 .. code-block:: text
 
     # Archive the latest version of T010075:
-    $ echo "T010075" > to-archive.txt
+    $ dcc archive -s /path/to/archive --number T010075
+
+    # Archive multiple records:
+    $ dcc archive -s /path/to/archive --number T010075 --number E1300945
+
+    # Or alternatively, specify an input file containing the records to archive:
+    $ echo "T010075 E1300945" > to-archive.txt
     $ dcc archive -s /path/to/archive to-archive.txt
 
     # Archive a specific version of T010075:
-    $ echo "T010075-v1" > to-archive.txt
-    $ dcc archive -s /path/to/archive to-archive.txt
+    $ dcc archive -s /path/to/archive --number T010075-v1
 
-The input can also be set to ``stdin`` by specifying ``-``:
+Similar to the behaviour of standard Unix utilities, the input can also be set to
+``stdin`` by specifying ``-``:
 
 .. code-block:: text
 
-    $ echo "T010075" | dcc archive -s /path/to/archive -
+    $ echo "T010075 E1300945" | dcc archive -s /path/to/archive -
 
 Files are not automatically archived. To fetch them too, specify the :option:`--files
 <dcc --files>` flag. By default, files of any size will be retrieved. To limit the
@@ -154,10 +161,10 @@ For example, the referenced documents of ``T010075`` can be archived alongside
 .. code-block:: text
 
     # Fetch "related to" documents as well as T010075 itself:
-    $ echo "T010075" | dcc archive -s /path/to/archive --depth 1 -
+    $ dcc archive -s /path/to/archive --number T010075 --depth 1
 
     # Fetch "referenced by" documents as well:
-    $ echo "T010075" | dcc archive -s /path/to/archive --depth 1 --fetch-referencing -
+    $ dcc archive -s /path/to/archive --number T010075 --depth 1 --fetch-referencing -
 
 .. _updating_record_metadata:
 

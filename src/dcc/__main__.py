@@ -771,7 +771,13 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
 
 
 @dcc.command()
-@click.argument("src", type=click.File("r"))
+@click.argument("src", type=click.File("r"), nargs=-1)
+@click.option(
+    "--number",
+    type=DCC_NUMBER_TYPE,
+    multiple=True,
+    help="Fetch record with specified number (can be specified multiple times).",
+)
 @depth_option
 @fetch_related_option
 @fetch_referencing_option
@@ -792,6 +798,7 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
 def archive(
     ctx,
     src,
+    number,
     depth,
     fetch_related,
     fetch_referencing,
@@ -800,10 +807,10 @@ def archive(
     skip_category,
     force,
 ):
-    """Archive remote DCC records locally using DCC numbers listed in file.
+    """Archive remote DCC records locally.
 
-    Each DCC number in SRC should be a DCC record designation with optional version
-    such as 'D040105' or 'D040105-v1'.
+    Each DCC number in SRC or --number should be a DCC record designation with optional
+    version such as 'D040105' or 'D040105-v1'.
 
     If a DCC number contains a version and is present in the local archive, it is used
     unless --force is specified. If the DCC number does not contain a version, a version
@@ -815,34 +822,45 @@ def archive(
     variable in order to persist downloaded data across invocations of this tool.
     """
     state = ctx.ensure_object(_State)
+    extra_numbers = number
 
     with state.dcc_archive() as archive, state.dcc_session() as session:
+        numbers = []
+
+        # Extract numbers from input file(s).
+        for srcfile in src:
+            while srcnumbers := srcfile.readline():
+                srcnumbers = srcnumbers.split()
+
+                for number in srcnumbers:
+                    try:
+                        number = DCCNumber(number)
+                    except Exception as err:
+                        state.echo_exception(f"Error parsing {repr(number)}: {err}")
+                    else:
+                        numbers.append(number)
+
+        # Add numbers specified as extra options.
+        for extra_number in extra_numbers:
+            numbers.append(extra_number)
+
+        # Archive the numbers.
         result = ArchiveResult()
-
         try:
-            while numbers := src.readline():
-                numbers = numbers.split()
-
-                for number in numbers:
-                    number = number.strip()
-
-                    if not number:
-                        # Skip invalid.
-                        continue
-
-                    result += _archive_record(
-                        state,
-                        archive,
-                        number,
-                        depth,
-                        fetch_related,
-                        fetch_referencing,
-                        files,
-                        ignore_version,
-                        skip_category,
-                        force,
-                        session,
-                    )
+            for number in numbers:
+                result += _archive_record(
+                    state,
+                    archive,
+                    number,
+                    depth,
+                    fetch_related,
+                    fetch_referencing,
+                    files,
+                    ignore_version,
+                    skip_category,
+                    force,
+                    session,
+                )
         finally:
             state.echo(result)
 
