@@ -84,6 +84,24 @@ class DCCArchive:
             path = self.document_dir(document)
             yield from self.revisions(path.name)
 
+    @property
+    def latest_revisions(self):
+        """Latest revisions of the documents in the local archive.
+
+        Yields
+        ------
+        :class:`.DCCRecord`
+            The latest revision of a document in the archive.
+        """
+        for document in self.documents:
+            path = self.document_dir(document)
+
+            try:
+                yield self.latest_revision(path.name)
+            except Exception:
+                # Not a valid DCC record.
+                pass
+
     @ensure_session
     def fetch_record(
         self,
