@@ -2,6 +2,10 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
+## 0.7.5 (hotfix)
+- Developer tools:
+  - Fixed PyPI deployment on CI
+
 ## 0.7.4
 - Package:
   - Renamed `DCCNumber.string_repr` to `DCCNumber.format`
