@@ -15,15 +15,16 @@ import click
 
 from . import __version__, PROGRAM, AUTHORS, PROJECT_URL
 from .records import DCCArchive, DCCNumber, DCCAuthor
-from .sessions import DCCAuthenticatedSession, DCCUnauthenticatedSession
+from .sessions import DCCSession, DCCAuthenticatedSession, DCCUnauthenticatedSession
 from .parsers import DCCParser
 from .env import DEFAULT_HOST, DEFAULT_IDP
-from .util import change_exc_msg
+from .util import change_exc_msg, human_file_size
 from .exceptions import (
     NotLoggedInError,
     UnrecognisedDCCRecordError,
     UnauthorisedError,
-    FileTooLargeError,
+    FileSkippedException,
+    TooLargeFileSkippedException,
     DryRun,
 )
 
@@ -380,17 +381,7 @@ class _State:
         self._verbosity = logging.WARNING
 
     def dcc_session(self):
-        progress = None
-        if self.show_progress:
-            # Only show progress when not being quiet.
-            if self.verbose:
-                progress = self._download_progress_hook
-
-        kwargs = dict(
-            max_file_size=self.max_file_size,
-            simulate=self.dry_run,
-            download_progress_hook=progress,
-        )
+        kwargs = dict(simulate=self.dry_run, stream_hook=self._stream_hook)
 
         if self.public:
             self.echo_info("Creating unauthenticated DCC session.")
@@ -431,28 +422,42 @@ class _State:
         self.echo_debug(f"Using {archive_dir} as archive.")
         return DCCArchive(archive_dir)
 
-    def _download_progress_hook(self, thing, chunks, total_length):
+    def _stream_hook(self, response_type, item, response):
+        if response_type is not DCCSession.STREAM_FILE:
+            raise RuntimeError(f"Unrecognised response type {repr(response_type)}.")
+
+        # We're downloading a file.
+        content_length = response.headers.get("content-length")
+        if content_length:
+            content_length = int(content_length)
+            self.echo_debug(f"Content length: {content_length}")
+
+        if content_length:
+            if self.max_file_size is not None and content_length > self.max_file_size:
+                raise TooLargeFileSkippedException(
+                    item, content_length, self.max_file_size
+                )
+
+            # Only show progress when not being quiet.
+            if self.show_progress and self.verbose:
+                response = self._download_progress_hook(item, response, content_length)
+        else:
+            self.echo_debug(
+                "Can't show progress or check file size: no Content-Length header."
+            )
+
+        yield from response
+
+    def _download_progress_hook(self, item, chunks, total_length):
         # Iterate over the chunks, yielding each chunk and updating the progress bar.
         with click.progressbar(length=total_length) as progressbar:
             display_length = ""
             if total_length:
                 # Convert to user friendly length.
-                if total_length >= 1024 * 1024 * 1024:
-                    value = total_length / (1024 * 1024 * 1024)
-                    unit = "GB"
-                elif total_length >= 1024 * 1024:
-                    value = total_length / (1024 * 1024)
-                    unit = "MB"
-                elif total_length >= 1024:
-                    value = total_length / 1024
-                    unit = "kB"
-                else:
-                    value = total_length
-                    unit = "B"
-
+                value, unit = human_file_size(total_length)
                 display_length = f" ({value:.2f} {unit})"
 
-            self.echo(f"Downloading {thing}{display_length}")
+            self.echo(f"Downloading {item}{display_length}")
             for chunk in chunks:
                 yield chunk
                 progressbar.update(len(chunk))
@@ -742,7 +747,7 @@ def open_file(ctx, dcc_number, file_number, ignore_version, locate, force):
         except (NotLoggedInError, UnauthorisedError) as err:
             change_exc_msg(err, f"You are not authorised to access {dcc_number}.")
             state.echo_exception(err, exit_=True)
-        except FileTooLargeError as err:
+        except FileSkippedException as err:
             state.echo_exception(err, _exit=True)
 
         if state.archive_is_temporary:

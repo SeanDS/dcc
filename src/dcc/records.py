@@ -13,7 +13,7 @@ import tomli_w
 from .sessions import default_session
 from .parsers import DCCXMLRecordParser, DCCXMLUpdateParser
 from .util import opened_file, remove_none
-from .exceptions import NoVersionError, FileTooLargeError
+from .exceptions import NoVersionError, TooLargeFileSkippedException
 
 LOGGER = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class DCCArchive:
             Whether to also fetch the files attached to the record. Defaults to False.
 
         ignore_too_large : bool, optional
-            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            If False, when a file is too large, raise a :class:`.TooLargeFileSkippedException`. If
             True, the file is simply ignored.
 
         session : :class:`.DCCSession`, optional
@@ -216,7 +216,7 @@ class DCCArchive:
             The record to fetch files for.
 
         ignore_too_large : bool, optional
-            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            If False, when a file is too large, raise a :class:`.TooLargeFileSkippedException`. If
             True, the file is simply ignored.
 
         overwrite : bool, optional
@@ -870,7 +870,7 @@ class DCCRecord:
             The directory in which to store the fetched files.
 
         ignore_too_large : bool, optional
-            If False, when a file is too large, raise a :class:`.FileTooLargeError`. If
+            If False, when a file is too large, raise a :class:`.TooLargeFileSkippedException`. If
             True, the file is simply ignored.
 
         overwrite : bool, optional
@@ -892,7 +892,7 @@ class DCCRecord:
                 file_ = self.fetch_file(
                     number, directory, overwrite=overwrite, session=session
                 )
-            except FileTooLargeError as err:
+            except TooLargeFileSkippedException as err:
                 if ignore_too_large:
                     # Just skip the file, don't raise the error.
                     LOGGER.debug(f"{err}; skipping")
