@@ -263,6 +263,10 @@ address.
 
 List records in the local archive.
 
+.. option:: --full
+
+    Show full records.
+
 .. option:: -s, --archive-dir
 
     Directory to use to archive and retrieve downloaded documents and files. If not
