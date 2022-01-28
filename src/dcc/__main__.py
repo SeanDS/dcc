@@ -573,30 +573,33 @@ class _State:
         self.echo_key(key, separator=True, nl=False)
         self.echo(value)
 
-    def echo_record(self, record, session):
-        self.echo_key_value("number", record.dcc_number)
-        self.echo_key_value("url", session.dcc_record_url(record.dcc_number, xml=False))
-        self.echo_key_value("title", record.title)
-        self.echo_key_value("modified", record.contents_revision_date)
-        self.echo_key_value(
-            "authors", ", ".join([author.name.strip() for author in record.authors])
-        )
-        self.echo_key("abstract")
-        if record.abstract:
-            self.echo(html2text(record.abstract).strip())
-        self.echo_key("note")
-        if record.note:
-            self.echo(html2text(record.note).strip())
-        self.echo_key_value("keywords", ", ".join(record.keywords))
-        self.echo_key("files")
-        for i, file_ in enumerate(record.files, start=1):
-            self.echo(f"{i}. {file_}")
-        self.echo_key_value(
-            "referenced by", ", ".join([str(ref) for ref in record.referenced_by])
-        )
-        self.echo_key_value(
-            "related to", ", ".join([str(ref) for ref in record.related_to])
-        )
+    def echo_record(self, record, session, detailed=False):
+        self.echo_key_value(record.dcc_number, record.title)
+
+        if detailed:
+            self.echo_key_value(
+                "url", session.dcc_record_url(record.dcc_number, xml=False)
+            )
+            self.echo_key_value("modified", record.contents_revision_date)
+            self.echo_key_value(
+                "authors", ", ".join([author.name.strip() for author in record.authors])
+            )
+            self.echo_key("abstract")
+            if record.abstract:
+                self.echo(html2text(record.abstract).strip())
+            self.echo_key("note")
+            if record.note:
+                self.echo(html2text(record.note).strip())
+            self.echo_key_value("keywords", ", ".join(record.keywords))
+            self.echo_key("files")
+            for i, file_ in enumerate(record.files, start=1):
+                self.echo(f"{i}. {file_}")
+            self.echo_key_value(
+                "referenced by", ", ".join([str(ref) for ref in record.referenced_by])
+            )
+            self.echo_key_value(
+                "related to", ", ".join([str(ref) for ref in record.related_to])
+            )
 
 
 # The help text for the root command.
@@ -667,7 +670,7 @@ def view(ctx, dcc_number, ignore_version, force):
             change_exc_msg(err, f"You are not authorised to access {dcc_number}.")
             state.echo_exception(err, exit_=True)
 
-        state.echo_record(record, session)
+        state.echo_record(record, session, detailed=True)
 
 
 @dcc.command("open")
@@ -891,12 +894,15 @@ def archive(
 
 
 @dcc.command("list")
+@click.option(
+    "--full", is_flag=True, default=False, show_default=True, help="Show full records."
+)
 @archive_dir_option
 @verbose_option
 @quiet_option
 @debug_option
 @click.pass_context
-def list_(ctx):
+def list_(ctx, full):
     """List records in the local archive.
 
     It is recommended to specify -s/--archive-dir or set the DCC_ARCHIVE environment
@@ -906,8 +912,10 @@ def list_(ctx):
 
     with state.dcc_archive() as archive, state.dcc_session() as session:
         for record in archive.records:
-            state.echo_record(record, session)
-            state.echo()  # Empty line.
+            state.echo_record(record, session, detailed=full)
+
+            if full:
+                state.echo()  # Empty line.
 
 
 @dcc.command()
@@ -1015,7 +1023,7 @@ def update(
         if authors:
             record.authors = [DCCAuthor(name) for name in authors]
 
-        state.echo_record(record, session)
+        state.echo_record(record, session, detailed=True)
 
         if confirm and not click.confirm("Submit changes to DCC?"):
             state.echo_error("Aborted!", exit_=True)
