@@ -242,6 +242,11 @@ address.
 
     The file to write extracted DCC numbers to.
 
+.. option:: --public
+
+    Only attempt to retrieve public DCC URLs. This should avoid triggering an
+    authentication check.
+
 .. option:: -v, --verbose
 
     Increase the program's verbosity. This can be specified multiple times to further

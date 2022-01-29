@@ -921,6 +921,7 @@ def list_(ctx, full):
 @dcc.command()
 @click.argument("src", type=str)
 @click.argument("dst", type=click.File("w"))
+@public_option
 @verbose_option
 @quiet_option
 @debug_option
