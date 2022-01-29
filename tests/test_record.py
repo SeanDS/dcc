@@ -42,9 +42,9 @@ def test_write_read(tmp_path):
         contents_revision_date=datetime(2022, 1, 25, 16, 27, 31),
         metadata_revision_date=datetime(2022, 1, 25, 16, 27, 32),
         files=[
-            DCCFile("A File.", "file_1.pdf", url="mock://dcc.example.org/file_1.pdf"),
+            DCCFile("A File.", "file_1.pdf", url="https://dcc.example.org/file_1.pdf"),
             DCCFile(
-                "Another File.", "file_1.pdf", url="mock://dcc.example.org/file_2.pdf"
+                "Another File.", "file_1.pdf", url="https://dcc.example.org/file_2.pdf"
             ),
         ],
         referenced_by=[DCCNumber("T1234567")],

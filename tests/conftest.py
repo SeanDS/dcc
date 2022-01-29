@@ -42,6 +42,4 @@ def mock_session():
     class MockSession(DCCUnauthenticatedSession):
         """A mock DCC session object."""
 
-        protocol = "mock"
-
     return partial(MockSession, host="dcc.example.org")
