@@ -1,4 +1,4 @@
-"""Test DCC archive."""
+"""DCC archive tests."""
 
 import pytest
 from dcc.records import DCCRecord, DCCNumber
