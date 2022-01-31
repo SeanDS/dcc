@@ -4,7 +4,7 @@ import abc
 import logging
 from requests import Session
 from ciecplib import Session as CIECPSession
-from .env import DEFAULT_HOST, DEFAULT_IDP
+from .env import DEFAULT_HOST, DEFAULT_IDP, USER_AGENT
 
 LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +65,9 @@ class DCCSession(metaclass=abc.ABCMeta):
 
         self.host = host
         self.stream_hook = stream_hook
+
+        # Add a user agent header.
+        self.headers.update({"user-agent": USER_AGENT})
 
     def fetch_record_page(self, dcc_number):
         """Fetch a DCC record page.
