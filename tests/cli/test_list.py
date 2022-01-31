@@ -3,7 +3,7 @@
 from dcc.__main__ import dcc
 
 
-def test_list_empty(cli_runner, archive):
+def test_list_empty(cli_runner):
     """List with empty archive."""
     # Without archive path, list is empty.
     result = cli_runner.invoke(dcc, ["list"])
