@@ -1,8 +1,8 @@
 __schema__ = "1"
 title = "This is the title."
 authors = [
-    { name = "John Doe", uid = "123" },
-    { name = "Jane Doe", uid = "321" },
+    { name = "John Doe", uid = "456", authorid = "123" },
+    { name = "Jane Doe", uid = "654", authorid = "321" },
 ]
 abstract = "This is the abstract."
 keywords = []
