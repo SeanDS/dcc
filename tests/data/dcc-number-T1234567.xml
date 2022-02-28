@@ -12,13 +12,13 @@
             <firstname>John</firstname>
             <lastname>Doe</lastname>
             <fullname>John Doe</fullname>
-            <employeenumber>123</employeenumber>
+            <employeenumber>456</employeenumber>
         </author>
         <author id="321">
             <firstname>Jane</firstname>
             <lastname>Doe</lastname>
             <fullname>Jane Doe</fullname>
-            <employeenumber>321</employeenumber>
+            <employeenumber>654</employeenumber>
         </author>
         <topic id="18" parentid="1">
             <name><![CDATA[System Engineering]]></name>
