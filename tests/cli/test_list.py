@@ -11,9 +11,9 @@ def test_list_empty(cli_runner):
     assert not result.stdout
 
 
-def test_list_one_record(cli_runner, archive, ref_record):
+def test_list_one_record(cli_runner, archive, fetch_ref_record):
     """List with archive with one record."""
-    record = ref_record("T1234567")
+    record = fetch_ref_record("T1234567")
     archive.archive_revision_metadata(record)
 
     # With archive path, should have 1 record.

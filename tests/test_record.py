@@ -4,19 +4,14 @@ from datetime import datetime
 import pytest
 from dcc.records import DCCNumber, DCCRecord, DCCAuthor, DCCJournalRef, DCCFile
 from dcc.testing import assert_record_meta_matches
+from testutils import DCC_TEST_DCC_NUMBER, requires_dcc_test_env
 
 
 @pytest.mark.parametrize("dcc_number", (DCCNumber("T1234567"),))
-def test_fetch(requests_mock, mock_session, xml_response, ref_record, dcc_number):
+def test_fetch(mock_session, fetch_ref_record, dcc_number):
     """Test fetching record from (mock) DCC."""
-    xml = xml_response(dcc_number)
-    reference = ref_record(dcc_number)
-
-    with mock_session() as session:
-        url = session.dcc_record_url(dcc_number)
-        requests_mock.get(url, text=xml)
-        fetched = DCCRecord.fetch(dcc_number, session=session)
-
+    reference = fetch_ref_record(dcc_number)
+    fetched = DCCRecord.fetch(dcc_number, session=mock_session)
     assert_record_meta_matches(fetched, reference)
 
 
@@ -55,3 +50,12 @@ def test_write_read(tmp_path):
     record.write(path)
     loaded = DCCRecord.read(path)
     assert_record_meta_matches(record, loaded)
+
+
+@requires_dcc_test_env
+def test_fetch_record(dcc_test_session):
+    """Test fetching record from real DCC."""
+    dcc_number = DCCNumber(DCC_TEST_DCC_NUMBER)
+    fetched = DCCRecord.fetch(dcc_number, session=dcc_test_session)
+
+    assert fetched.dcc_number == dcc_number

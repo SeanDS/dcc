@@ -3,10 +3,10 @@
 from dcc.__main__ import dcc
 
 
-def test_view(cli_runner, archive, ref_record):
+def test_view(cli_runner, archive, fetch_ref_record):
     """View record."""
     number = "T1234567"
-    record = ref_record(number)
+    record = fetch_ref_record(number)
     archive.archive_revision_metadata(record)
 
     result = cli_runner.invoke(
