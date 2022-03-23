@@ -96,18 +96,14 @@ def test_latest_revisions(archive):
     assert_orderless_eq(archive.latest_revisions, [record1, record3])
 
 
-def test_fetch_record(
-    requests_mock, mock_session, xml_response, fetch_ref_record, archive
-):
+def test_fetch_record(mock_session, fetch_ref_record, archive):
     """Test fetching of a DCC record not in the current archive."""
     dcc_number = DCCNumber("T1234567")
-    xml = xml_response(dcc_number)
     reference = fetch_ref_record(dcc_number)
 
     assert_orderless_eq(archive.records, [])
 
     url = mock_session.dcc_record_url(dcc_number)
-    requests_mock.get(url, text=xml)
     assert_record_meta_matches(
         archive.fetch_record(dcc_number, session=mock_session), reference
     )
@@ -144,9 +140,7 @@ def test_fetch_existing_record__with_versioned_number(
 @pytest.mark.parametrize("ignore_version", (False, True))
 @pytest.mark.parametrize("overwrite", (False, True))
 def test_fetch_existing_record__with_versioned_number__force(
-    requests_mock,
     mock_session,
-    xml_response,
     fetch_ref_record,
     archive,
     ignore_version,
@@ -159,7 +153,6 @@ def test_fetch_existing_record__with_versioned_number__force(
     detect whether an overwrite has occurred.
     """
     dcc_number = DCCNumber("T1234567-v2")
-    xml = xml_response(dcc_number)
     reference = fetch_ref_record(dcc_number)
 
     # Change the referenced record.
@@ -170,7 +163,6 @@ def test_fetch_existing_record__with_versioned_number__force(
     assert_orderless_eq(archive.records, [reference])
 
     url = mock_session.dcc_record_url(dcc_number)
-    requests_mock.get(url, text=xml)
     fetched = archive.fetch_record(
         dcc_number,
         ignore_version=ignore_version,
@@ -185,7 +177,7 @@ def test_fetch_existing_record__with_versioned_number__force(
 
 
 def test_fetch_existing_record__with_nonversioned_number(
-    requests_mock, mock_session, xml_response, fetch_ref_record, archive
+    mock_session, fetch_ref_record, archive
 ):
     """Test fetching of a record already in the archive using a versionless DCC number.
 
@@ -194,7 +186,6 @@ def test_fetch_existing_record__with_nonversioned_number(
     one, so it is not overwritten.
     """
     dcc_number = DCCNumber("T1234567")
-    xml = xml_response(dcc_number)
     reference = fetch_ref_record(dcc_number)
 
     assert_orderless_eq(archive.records, [])
@@ -202,7 +193,6 @@ def test_fetch_existing_record__with_nonversioned_number(
     assert_orderless_eq(archive.records, [reference])
 
     url = mock_session.dcc_record_url(dcc_number)
-    requests_mock.get(url, text=xml)
     assert_record_meta_matches(
         archive.fetch_record(dcc_number, ignore_version=False, session=mock_session),
         reference,
