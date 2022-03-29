@@ -225,13 +225,12 @@ def test_fetch_existing_record__with_nonversioned_number__ignore_version(
 
 
 @requires_dcc_test_env
-@pytest.mark.xfail(
-    reason=(
-        "Bug in dcc-test.ligo.org? Returns HTTP 200 but doesn't update due to XML "
-        "parsing error."
-    )
-)
 def test_update_metadata(dcc_test_session, archive):
+    """Check live metadata update request.
+
+    Only works on development versions >= 3.4.1-4-gcc35247; works fine on earlier tagged
+    releases (see https://dcc.ligo.org/bugzilla/show_bug.cgi?id=541).
+    """
     record = archive.fetch_record(DCC_TEST_DCC_NUMBER, session=dcc_test_session)
 
     # Update some metadata.
