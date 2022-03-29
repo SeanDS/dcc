@@ -1017,7 +1017,7 @@ class DCCRecord:
         item.update(itemdict)
 
         # Apply some corrections.
-        for number, file_ in enumerate(item["files"]):
+        for file_ in item["files"]:
             # Remove fields that can be reproduced from other data.
             file_.pop("local_path", None)
 
