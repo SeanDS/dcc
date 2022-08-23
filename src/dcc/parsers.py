@@ -139,7 +139,7 @@ class DCCXMLRecordParser(DCCParser):
             except AttributeError:
                 enum = None
 
-            yield name, enum
+            yield name, enum, a.get("id")
 
     @cached_property
     def abstract(self):

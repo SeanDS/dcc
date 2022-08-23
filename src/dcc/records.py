@@ -457,6 +457,7 @@ class DCCAuthor:
 
     name: str
     uid: int = None
+    authorid: int = None
 
     def __str__(self):
         return self.name
@@ -869,7 +870,7 @@ class DCCRecord:
         return DCCRecord(
             dcc_number=parsed_dcc_number,
             title=parsed.title,
-            authors=[DCCAuthor(name, uid) for name, uid in parsed.authors],
+            authors=[DCCAuthor(*auth) for auth in parsed.authors],
             abstract=parsed.abstract,
             keywords=parsed.keywords,
             note=parsed.note,
