@@ -54,6 +54,23 @@ followed by the :option:`DCC number <dcc DCC_NUMBER>`, e.g.:
     Depending on the level of privilege of your credentials, you may see more or less
     information than that shown above.
 
+Opening a record in a file browser
+----------------------------------
+
+The command :program:`dcc open` opens the directory containing the locally archived
+record for the specified :option:`DCC number <dcc DCC_NUMBER>` using the operating
+system's default file browser, e.g.:
+
+.. code-block:: text
+
+    $ dcc open T010075-v3
+
+.. note::
+
+    If the specified :option:`DCC number <dcc DCC_NUMBER>` lacks a version identifier
+    (e.g. `T010075` as opposed to `T010075-v3`), the parent directory containing all
+    locally archived versions of the record is opened instead.
+
 Downloading and opening a file
 ------------------------------
 

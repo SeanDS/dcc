@@ -25,6 +25,7 @@ from .exceptions import (
     UnauthorisedError,
     FileSkippedException,
     TooLargeFileSkippedException,
+    NoVersionError,
 )
 
 
@@ -675,6 +676,38 @@ def view(ctx, dcc_number, ignore_version, force):
 
 @dcc.command("open")
 @dcc_number_argument
+@archive_dir_option
+@verbose_option
+@quiet_option
+@debug_option
+@click.pass_context
+def open_(ctx, dcc_number):
+    """Open local DCC record directory using operating system.
+
+    DCC_NUMBER should be a DCC record designation with optional version such as
+    'D040105' or 'D040105-v1'.
+    """
+    state = ctx.ensure_object(_State)
+
+    with state.dcc_archive() as archive:
+        try:
+            # If the user specified a version, we'll get the version directory. This
+            # fails if the user did not specify a version.
+            directory = archive.revision_dir(dcc_number)
+        except NoVersionError:
+            # Get the document directory containing all revisions in the archive.
+            directory = archive.document_dir(dcc_number)
+
+    if not directory.exists():
+        state.echo_error(
+            f"{repr(str(dcc_number))} does not exist in the local archive.", exit_=True
+        )
+
+    click.launch(str(directory))
+
+
+@dcc.command("open-remote")
+@dcc_number_argument
 @click.option(
     "--xml",
     is_flag=True,
@@ -689,7 +722,7 @@ def view(ctx, dcc_number, ignore_version, force):
 @quiet_option
 @debug_option
 @click.pass_context
-def open_(ctx, dcc_number, xml):
+def open_remote(ctx, dcc_number, xml):
     """Open remote DCC record page in the default browser.
 
     DCC_NUMBER should be a DCC record designation with optional version such as

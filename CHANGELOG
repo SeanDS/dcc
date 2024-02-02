@@ -2,6 +2,11 @@
 # Change log
 All notable changes to `dcc` will be documented in this file.
 
+## Unreleased
+- CLI:
+  - Changed `dcc open` to `dcc open-remote` and added a new command `dcc open` to open
+    a locally archived DCC record with the operating system's default file browser.
+
 ## 0.8.0
 - CLI:
   - Changed `dcc update` `--dry-run` flag to `--confirm/--no-confirm`; now it shows

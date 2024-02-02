@@ -299,10 +299,46 @@ List records in the local archive.
 
 .. program:: dcc open
 
+Open local DCC record directory using operating system.
+
+:option:`DCC_NUMBER <dcc open DCC_NUMBER>` should be a DCC record designation
+with optional version such as ``D040105`` or ``D040105-v1``.
+
+.. option:: DCC_NUMBER
+
+    The number for the DCC record to archive.
+
+.. option:: -s, --archive-dir
+
+    Directory to use to archive and retrieve downloaded documents and files. If not
+    specified, the :ref:`DCC_ARCHIVE <env_dcc_archive>` environment variable is used if
+    set, otherwise defaults to the system's temporary directory (e.g. ``/tmp`` on
+    Linux). To persist archive data across invocations of the tool, ensure this option
+    is set.
+
+.. option:: -v, --verbose
+
+    Increase the program's verbosity. This can be specified multiple times to further
+    increase verbosity.
+
+.. option:: -q, --quiet
+
+    Decrease the program's verbosity. This can be specified multiple times to further
+    decrease verbosity.
+
+.. option:: --debug
+
+    Show full exceptions when errors are encountered.
+
+``dcc open-remote``
+-------------------
+
+.. program:: dcc open-remote
+
 Open remote DCC record page in the default browser.
 
-:option:`DCC_NUMBER <dcc open DCC_NUMBER>` should be a DCC record designation with
-optional version such as ``D040105`` or ``D040105-v1``.
+:option:`DCC_NUMBER <dcc open-remote DCC_NUMBER>` should be a DCC record designation
+with optional version such as ``D040105`` or ``D040105-v1``.
 
 .. option:: DCC_NUMBER
 
