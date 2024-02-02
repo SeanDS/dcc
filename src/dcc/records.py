@@ -85,6 +85,16 @@ class DCCArchive:
             yield from self.revisions(path.name)
 
     @property
+    def isempty(self):
+        """Whether the local archive is empty.
+
+        Returns
+        -------
+        True if empty, False otherwise.
+        """
+        return not any(True for _ in self.documents)
+
+    @property
     def latest_revisions(self):
         """Latest revisions of the documents in the local archive.
 
