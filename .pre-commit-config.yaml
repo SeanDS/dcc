@@ -12,7 +12,7 @@ repos:
         - id: docformatter
           args: ["--in-place", "--wrap-summaries", "88", "--wrap-descriptions", "88"]
     - repo: https://github.com/psf/black
-      rev: 21.7b0
+      rev: 22.3.0
       hooks:
         - id: black
     - repo: https://gitlab.com/pycqa/flake8
