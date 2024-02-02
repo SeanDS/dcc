@@ -149,6 +149,11 @@ class DCCArchive:
         session : :class:`.DCCSession`, optional
             The DCC session to use. Defaults to None, which triggers use of the default
             session settings.
+
+        Returns
+        -------
+        record : :class:`.DCCRecord`
+            The fetched DCC record.
         """
         dcc_number = DCCNumber(dcc_number)
 
